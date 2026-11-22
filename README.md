@@ -2,6 +2,15 @@
 
 AppGuardian reviews a user-selected APK on the phone and helps the user inspect and change permissions for installed apps Android makes visible.
 
+## Run the complete pilot
+
+The Android app works offline for APK review, visible installed-app permissions, local history, watch events, and recovery. Run the optional account and inspection stack with Docker Compose for encrypted cloud history, one-time APK inspection, and bilingual guidance. The account console is served by the same API.
+
+- [Android and service deployment runbook](docs/deployment.md)
+- [API and account console setup](backend/README.md)
+- [Privacy and threat model](docs/privacy.md)
+- [Release coverage and limitations](docs/backlog.md)
+
 ## Run the Android app
 
 Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9. Run the app on Android 9 or later. From a terminal with that toolchain, run `gradle testDebugUnitTest lintDebug assembleDebug`. The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
@@ -14,5 +23,3 @@ Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9
 6. Open **Account recovery** for English or Hindi checklists and official account settings links for Google, Microsoft and Apple.
 7. Use **DNS protection** to choose a provider and optional domain block rules. Read the coverage limits, approve the Android VPN prompt, and stop it at any time.
 8. Open **Cloud account** to connect to a configured HTTPS server, inspect an APK remotely, save an encrypted cloud report, or ask for English/Hindi guidance. Each disclosure requires a matching action or consent.
-
-[Privacy and threat model](docs/privacy.md) · [Startup backlog](docs/backlog.md)

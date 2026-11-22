@@ -1,0 +1,15 @@
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 HOME=/tmp
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends aapt apksigner util-linux \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /worker-ipc \
+    && chown 10002:10001 /worker-ipc \
+    && chmod 0750 /worker-ipc
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY guardian guardian
+USER 10002:10001
+CMD ["sh", "-ec", "rm -f /worker-ipc/guardian.sock; exec uvicorn guardian.worker:worker --uds /worker-ipc/guardian.sock --no-access-log"]

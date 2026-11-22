@@ -1,14 +1,13 @@
-# Startup backlog
+# AppGuardian release coverage
 
-| Area | Remaining work and acceptance evidence |
-| --- | --- |
-| Android review | Device tests for valid, unsigned, malformed and oversized APKs, revoked document access, split APK handling, and certificate rotation. Isolate parsing and clean stale temporary files after process death. |
-| Installed apps | Opt-in history with encrypted storage and retention controls. Define which changes can be observed in each Android profile, including when the app is backgrounded. |
-| Recovery | Add provider-specific bilingual instructions and user-confirmed recovery milestones. Test permission revocation, uninstall confirmation, and incomplete verification on a device. |
-| Network protection | Build explicit VpnService consent, visible service status, start/stop controls and policy enforcement. Verify DNS behavior, IPv6, service revocation, and compatibility with other VPNs. |
-| Assistant | Translate the deterministic finding and action catalog into Hindi. Add a configurable assistant that receives only explicitly consented fields and cannot change findings or invent verdicts. |
-| FastAPI and PostgreSQL | Account and device enrollment, authenticated history and deletion APIs, tenant isolation, encrypted minimal retention, migrations and integration tests. |
-| Worker | Separate untrusted scan execution from the API. Limit runtime, memory and process capabilities. Verify cleanup and enforce the absence of outbound network access. |
-| Threat intelligence | Review licensing and provenance before importing sources. Track source freshness and test exact-match interpretation and false-positive handling. |
-| Dashboard and B2B | Build account-scoped views, tenant-scoped assessment imports and audit trails after authorization tests pass. Decide whether to deploy the optional dashboard to Vercel. |
-| Releases | Device UI and security tests, signed release builds, deployment and rollback runbooks, Docker Compose, and release privacy review. |
+| Area | Pilot implementation | Release validation and limitations |
+| --- | --- | --- |
+| Android APK review | Local document consent, APK SHA-256, signer fingerprints, permissions and bounded manifest checks. | Validate split/rotated packages and malformed/resource-heavy fixtures across supported device versions. The local platform fingerprint is evidence for comparison. The worker has a separate signing verification step. |
+| Installed app review | Android-visible launcher apps, permission grants, guided Settings actions, recheck and encrypted opt-in periodic watch. | Validate grant revocation and reinstallation on physical devices. Android visibility and scheduling define what the app can observe. |
+| Local history and recovery | Encrypted opt-in report history, per-report deletion, and English/Hindi provider checklists with user-confirmed steps. | Verify provider navigation and accessibility on supported device sizes. Recovery confirmation comes from the user. |
+| Network protection | User-configured DNS blocking, explicit Android VPN consent, encrypted forwarding and a visible stop control. | Verify DNS results on physical devices and networks. The tunnel handles a bounded UDP DNS route, with bypasses and failure modes documented. |
+| Cloud API and history | Private pilot enrollment, token and device isolation, encrypted consented reports, deletion, revocation and scheduled TTL. | Public registration, commercial billing and production infrastructure are outside this pilot. |
+| APK worker | Consent gate, bounded upload and Android tooling in a non-root service with no external network interface. | Expand package-tool compatibility coverage and assess the container boundary before public uploads. |
+| Assistant | Deterministic English/Hindi guidance with optional model prioritization of whitelisted evidence. | Configure and independently validate the chosen provider. User-visible actions come from the catalog. |
+| Threat intelligence and assessment | Exact CVE matches from CISA’s CC0 catalog with release provenance. Account console covers shared history, device revocation and CVE assessments. | Analysts validate affected products and versions. The catalog does not classify APK hashes. |
+| Delivery | Android debug builds, Docker Compose, GitHub Actions and local deployment instructions. | Production HTTPS, release signing, physical-device QA and operator review require a release environment. |
