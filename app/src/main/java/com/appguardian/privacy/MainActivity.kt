@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
     private var savedReviews by mutableStateOf(emptyList<SavedReview>())
     private var showHistory by mutableStateOf(false)
     private var showNetwork by mutableStateOf(false)
+    private var showCloud by mutableStateOf(false)
     private var pendingDnsStart: Intent? = null
     private var viewingSaved by mutableStateOf(false)
     private var savedCurrent by mutableStateOf(false)
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
         showWatch = false
         showHistory = false
         showNetwork = false
+        showCloud = false
         viewingSaved = false
         savedCurrent = false
         val result = withContext(Dispatchers.IO) { load() }
@@ -124,11 +126,22 @@ class MainActivity : ComponentActivity() {
     private fun openNetwork() {
         if (busy) return
         showNetwork = true
+        showCloud = false
         showApps = false
         showWatch = false
         showHistory = false
         review = null
         baseline = null
+        status = ""
+    }
+
+    private fun openCloud() {
+        if (busy) return
+        showCloud = true
+        showNetwork = false
+        showApps = false
+        showWatch = false
+        showHistory = false
         status = ""
     }
 
@@ -171,6 +184,7 @@ class MainActivity : ComponentActivity() {
         showWatch = false
         showHistory = false
         showNetwork = false
+        showCloud = false
         review = null
         baseline = null
     }
@@ -181,6 +195,7 @@ class MainActivity : ComponentActivity() {
         showApps = false
         showHistory = false
         showNetwork = false
+        showCloud = false
         review = null
         baseline = null
     }
@@ -207,6 +222,7 @@ class MainActivity : ComponentActivity() {
         savedReviews = withContext(Dispatchers.IO) { history.load() }
         showHistory = true
         showNetwork = false
+        showCloud = false
         showApps = false
         showWatch = false
         review = null
@@ -314,7 +330,10 @@ class MainActivity : ComponentActivity() {
                         TextButton(enabled = !busy, onClick = { openWatch() }) { Text("Permission monitor") }
                         TextButton(enabled = !busy, onClick = { openHistory() }) { Text("Scan history") }
                     }
-                    TextButton(enabled = !busy, onClick = { openNetwork() }) { Text("DNS protection") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(enabled = !busy, onClick = { openNetwork() }) { Text("DNS protection") }
+                        TextButton(enabled = !busy, onClick = { openCloud() }) { Text("Cloud account") }
+                    }
                     if (showApps) {
                         Text("Android shows AppGuardian a limited list of apps with launcher entries.")
                         if (apps.isEmpty()) Text("No launcher apps are visible.")
@@ -330,6 +349,7 @@ class MainActivity : ComponentActivity() {
                     AnimatedVisibility(status.isNotBlank()) { Text(status) }
                 }
                 if (showNetwork) { item { DnsProtectionPanel(::requestVpn, ::stopDnsService) } }
+                if (showCloud) { item { CloudPanel(review) } }
                 if (showWatch) {
                     item {
                         Text("Permission monitor", style = MaterialTheme.typography.headlineSmall)
@@ -384,7 +404,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                review?.let { result ->
+                review?.takeUnless { showCloud }?.let { result ->
                     item {
                         if (viewingSaved) Text("Saved report", style = MaterialTheme.typography.labelLarge)
                         Text(result.packageName, style = MaterialTheme.typography.headlineSmall)

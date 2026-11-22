@@ -13,5 +13,6 @@ Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9
 5. Use **Save report on this device** to keep a report in encrypted local history for up to seven days. You can delete single reports or clear the history.
 6. Open **Account recovery** for English or Hindi checklists and official account settings links for Google, Microsoft and Apple.
 7. Use **DNS protection** to choose a provider and optional domain block rules. Read the coverage limits, approve the Android VPN prompt, and stop it at any time.
+8. Open **Cloud account** to connect to a configured HTTPS server, inspect an APK remotely, save an encrypted cloud report, or ask for English/Hindi guidance. Each disclosure requires a matching action or consent.
 
 [Privacy and threat model](docs/privacy.md) · [Startup backlog](docs/backlog.md)

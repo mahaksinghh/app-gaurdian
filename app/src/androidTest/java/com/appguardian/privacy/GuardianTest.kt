@@ -3,6 +3,7 @@ package com.appguardian.privacy
 import android.content.ContentValues
 import android.os.Build
 import android.provider.MediaStore
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -33,6 +34,12 @@ class GuardianTest {
         screen.onNodeWithText("If you suspect account access", substring = true).assertExists()
         screen.onNodeWithText("हिन्दी").performScrollTo().performClick()
         screen.onNodeWithText("विश्वसनीय डिवाइस इस्तेमाल करें", substring = true).assertExists()
+    }
+
+    @Test fun cloudConnectionRequiresServerAndCredentials() {
+        screen.onNodeWithText("Cloud account").performScrollTo().performClick()
+        screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Sign in"))
+        screen.onNodeWithText("Sign in").assertIsNotEnabled()
     }
 
     @Test fun dnsProtectionStaysOffUntilExplicitConsent() {
