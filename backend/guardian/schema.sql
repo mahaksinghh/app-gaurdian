@@ -34,9 +34,14 @@ CREATE TABLE IF NOT EXISTS guardian_scans (
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL,
     sealed_report bytea NOT NULL,
+    shared_with_account boolean NOT NULL DEFAULT false,
     FOREIGN KEY (device_id, account_id) REFERENCES guardian_devices(id, account_id) ON DELETE CASCADE,
     CHECK (expires_at > created_at)
 );
 
 CREATE INDEX IF NOT EXISTS guardian_scan_device_created_idx ON guardian_scans(device_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS guardian_scan_expiry_idx ON guardian_scans(expires_at);
+
+ALTER TABLE guardian_scans ADD COLUMN IF NOT EXISTS shared_with_account boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS guardian_scan_shared_idx ON guardian_scans(account_id, created_at DESC)
+    WHERE shared_with_account;

@@ -1,6 +1,6 @@
 # AppGuardian API
 
-The API stores encrypted, explicitly consented scan reports, scoped to the device that submitted them. A report is marked as device-reported. History accepts structured evidence and fingerprints. The separate optional archive endpoint sends an explicitly consented upload to an isolated worker for one-time inspection.
+The API stores encrypted, explicitly consented scan reports, scoped to the device that submitted them by default. A second per-report consent can show the report to another signed-in device on the same account. A report is marked as device-reported. History accepts structured evidence and fingerprints. The separate optional archive endpoint sends an explicitly consented upload to an isolated worker for one-time inspection.
 
 ## Run locally
 
@@ -26,6 +26,12 @@ Use authenticated `POST /v1/guide` with a scenario, language (`en` or `hi`), and
 To enable the vulnerability catalog, run `docker compose --profile intelligence run --rm --build catalog` and `docker compose restart api`. Repeat to refresh it. The catalog CLI fetches and validates the official CISA mirror and installs the release atomically. [CISA catalog and CC0 license](https://github.com/cisagov/kev-data).
 
 Use authenticated `POST /v1/assessments/kev` with up to 50 CVE IDs from an authorized assessment. Exact matches include CISA's remediation guidance, source and release date. Package identity and an unlisted CVE cannot establish applicability or safety. Assessments are one-time responses and are kept out of scan history.
+
+## Web console
+
+With Compose running, open `http://localhost:8000/dashboard/` and sign in to an enrolled account. The console shows only reports that their originating device explicitly shared. It also lists devices, supports revocation, and looks up CVEs using the enabled catalog.
+
+For optional Vercel hosting, connect this repository, set the project root to `backend/guardian/web`, select the Other framework preset, and leave the install and build commands empty. The tracked configuration serves the static assets. Set `GUARDIAN_DASHBOARD_ORIGINS` on the API to the exact HTTPS dashboard origin and restart the API. Use the deployed HTTPS API address in the sign-in form. The dashboard does not require a database or provider key.
 
 ## Storage and deployment
 

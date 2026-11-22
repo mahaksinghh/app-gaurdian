@@ -49,6 +49,7 @@ class Device(BaseModel):
 
 class Consent(Input):
     store_report: Literal[True]
+    allow_account_dashboard: bool = False
 
 
 class ScanReport(Input):
@@ -81,6 +82,7 @@ class ScanRecord(BaseModel):
     created_at: datetime
     expires_at: datetime
     origin: Literal["device-reported"] = "device-reported"
+    shared_with_account: bool = False
     report: ScanReport
 
 

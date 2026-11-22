@@ -3,6 +3,7 @@ import binascii
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .assistant import Advisor
 
@@ -44,3 +45,16 @@ class Settings:
             raise ValueError("Enrollment requires a private secret at least 32 characters long.")
         if not 1 <= self.retention_days <= 30:
             raise ValueError("History retention must be between 1 and 30 days.")
+
+
+def dashboard_origins_from_env() -> list[str]:
+    origins = []
+    for value in os.environ.get("GUARDIAN_DASHBOARD_ORIGINS", "").split(","):
+        origin = value.strip().rstrip("/")
+        if not origin:
+            continue
+        url = urlsplit(origin)
+        if url.scheme != "https" or not url.hostname or url.username or url.password or url.path or url.query or url.fragment:
+            raise ValueError("Dashboard origins must be exact HTTPS origins.")
+        origins.append(origin)
+    return origins

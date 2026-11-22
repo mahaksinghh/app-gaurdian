@@ -1,10 +1,12 @@
 import hmac
 from contextlib import asynccontextmanager
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,10 +14,11 @@ from psycopg import Error
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 from starlette.datastructures import MutableHeaders
+from starlette.staticfiles import StaticFiles
 
 from .assistant import guide
 from .catalog import Assessment, load as load_catalog
-from .config import Settings
+from .config import Settings, dashboard_origins_from_env
 from .models import (
     ArchiveScan, AssessmentRequest, Device, Guidance, GuidanceRequest, Login, Registration,
     ScanRecord, Session, StoreReport,
@@ -37,7 +40,15 @@ class JsonBodyLimit:
 
         async def no_store(message):
             if message["type"] == "http.response.start":
-                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+                headers = MutableHeaders(scope=message)
+                headers["Cache-Control"] = "no-store"
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["Referrer-Policy"] = "no-referrer"
+                if scope["path"].startswith("/dashboard"):
+                    headers["Content-Security-Policy"] = (
+                        "default-src 'none'; script-src 'self'; style-src 'self'; "
+                        "connect-src 'self' https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+                    )
             await send(message)
 
         if scope["method"] not in {"POST", "PUT", "PATCH"} or scope["path"] == "/v1/archives/scan":
@@ -164,6 +175,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="AppGuardian", version="0.1.0", lifespan=lifespan)
     app.add_middleware(JsonBodyLimit)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=dashboard_origins_from_env(),
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "X-AppGuardian-Scan-Consent"],
+    )
+    app.mount("/dashboard", StaticFiles(directory=Path(__file__).with_name("web"), html=True), name="dashboard")
 
     @app.exception_handler(RequestValidationError)
     async def reject_validation(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -287,11 +305,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise unauthenticated()
             row = db.execute(
                 """
-                INSERT INTO guardian_scans (id, account_id, device_id, expires_at, sealed_report)
-                VALUES (%s, %s, %s, now() + make_interval(days => %s), %s)
-                RETURNING created_at, expires_at
+                INSERT INTO guardian_scans (id, account_id, device_id, expires_at, sealed_report, shared_with_account)
+                VALUES (%s, %s, %s, now() + make_interval(days => %s), %s, %s)
+                RETURNING created_at, expires_at, shared_with_account
                 """,
-                (scan_id, user.account_id, user.device_id, request.app.state.settings.retention_days, encrypted),
+                (
+                    scan_id, user.account_id, user.device_id, request.app.state.settings.retention_days,
+                    encrypted, body.consent.allow_account_dashboard,
+                ),
             ).fetchone()
         return ScanRecord(id=scan_id, report=body.report, **row)
 
@@ -302,22 +323,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         with request.app.state.pool.connection() as db:
             rows = db.execute(
                 """
-                SELECT id, created_at, expires_at, sealed_report FROM guardian_scans
+                SELECT id, device_id, created_at, expires_at, sealed_report, shared_with_account FROM guardian_scans
                 WHERE account_id = %s AND device_id = %s AND expires_at > now()
                 ORDER BY created_at DESC, id DESC LIMIT %s
                 """,
                 (user.account_id, user.device_id, limit),
             ).fetchall()
-        vault = request.app.state.vault
-        return [
-            ScanRecord(
-                id=row["id"],
-                created_at=row["created_at"],
-                expires_at=row["expires_at"],
-                report=vault.open(user.account_id, user.device_id, row["id"], row["sealed_report"]),
-            )
-            for row in rows
-        ]
+        return scan_records(rows, user.account_id, request.app.state.vault)
+
+    @app.get("/v1/account/scans")
+    def list_shared_scans(
+        request: Request, user: Authenticated, limit: Annotated[int, Query(ge=1, le=100)] = 25
+    ) -> list[ScanRecord]:
+        with request.app.state.pool.connection() as db:
+            rows = db.execute(
+                """
+                SELECT id, device_id, created_at, expires_at, sealed_report, shared_with_account FROM guardian_scans
+                WHERE account_id = %s AND shared_with_account AND expires_at > now()
+                ORDER BY created_at DESC, id DESC LIMIT %s
+                """,
+                (user.account_id, limit),
+            ).fetchall()
+        return scan_records(rows, user.account_id, request.app.state.vault)
 
     @app.delete("/v1/scans/{scan_id}", status_code=204, response_class=Response)
     def delete_scan(scan_id: UUID, request: Request, user: Authenticated) -> None:
@@ -338,6 +365,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
     return app
+
+
+def scan_records(rows, account_id: UUID, vault: Vault) -> list[ScanRecord]:
+    return [
+        ScanRecord(
+            id=row["id"],
+            created_at=row["created_at"],
+            expires_at=row["expires_at"],
+            shared_with_account=row["shared_with_account"],
+            report=vault.open(account_id, row["device_id"], row["id"], row["sealed_report"]),
+        )
+        for row in rows
+    ]
 
 
 app = create_app()

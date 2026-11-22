@@ -127,3 +127,24 @@ def test_requests_are_authenticated_bounded_and_redacted(service):
     response = client.post("/v1/auth/login", json={"email": sensitive, "password": PASSWORD})
     assert response.status_code == 422
     assert sensitive not in response.text and PASSWORD not in response.text
+
+
+def test_sharing_requires_second_consent_and_stays_in_account(service):
+    client, _ = service
+    email, android = register(client)
+    _, outsider = register(client)
+    browser = client.post("/v1/auth/login", json={"email": email, "password": PASSWORD}).json()
+
+    private = client.post("/v1/scans", headers=headers(android), json=report())
+    assert private.status_code == 201
+    assert private.json()["shared_with_account"] is False
+    assert client.get("/v1/account/scans", headers=headers(browser)).json() == []
+
+    data = report()
+    data["consent"]["allow_account_dashboard"] = True
+    shared = client.post("/v1/scans", headers=headers(android), json=data)
+    assert shared.status_code == 201
+    assert client.get("/v1/account/scans", headers=headers(browser)).json() == [shared.json()]
+    assert client.get("/v1/account/scans", headers=headers(outsider)).json() == []
+    assert client.get("/v1/scans", headers=headers(browser)).json() == []
+    assert client.delete(f"/v1/scans/{shared.json()['id']}", headers=headers(browser)).status_code == 404
