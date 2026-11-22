@@ -41,6 +41,18 @@ async function request(path, method, body, token) {
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 960 } });
     await page.goto(origin + "/dashboard/");
+    await page.getByRole("heading", { name: "What do you want to protect?" }).waitFor();
+    await page.getByRole("button", { name: "Check a file" }).click();
+    await page.getByLabel("Select an Android APK").setInputFiles({
+      name: "fingerprint-fixture.apk", mimeType: "application/vnd.android.package-archive", buffer: Buffer.from("abc")
+    });
+    await page.getByRole("button", { name: "Compare fingerprint" }).click();
+    await page.getByText(/ba7816bf8f01cfea414140de5dae2223/).waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Start recovery" }).click();
+    await page.getByLabel("Change the password from a trusted device.").check();
+    await page.getByText("1 of 4 steps confirmed by you.").waitFor();
+    await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
     await page.getByRole("heading", { name: "Sign in" }).waitFor();
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(password);

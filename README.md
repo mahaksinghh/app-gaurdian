@@ -23,3 +23,17 @@ Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9
 6. Open **Account recovery** for English or Hindi checklists and official account settings links for Google, Microsoft and Apple.
 7. Use **DNS protection** to choose a provider and optional domain block rules. Read the coverage limits, approve the Android VPN prompt, and stop it at any time.
 8. Open **Cloud account** to connect to a configured HTTPS server, inspect an APK remotely, save an encrypted cloud report, or ask for English/Hindi guidance. Each disclosure requires a matching action or consent.
+
+
+## Use AppGuardian on Mac, Windows, and iPhone
+
+Open the hosted `/dashboard/` page over HTTPS. The web app opens to APK checks,
+account recovery, and shared reports. The browser computes file fingerprints on
+the device. Deeper APK inspection requires a signed-in account, an enabled
+worker, and upload consent. Account recovery and local fingerprint checks work
+offline after the browser has cached the app.
+
+Install the web app from Chrome or Edge on Mac and Windows, or use Safari’s
+**Add to Home Screen** on iPhone. Use the native Android app for installed-app
+permission review, permission monitoring, and Android DNS protection.
+The web app cannot inspect installed desktop or iPhone apps.

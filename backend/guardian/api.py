@@ -47,7 +47,7 @@ class JsonBodyLimit:
                 headers["Referrer-Policy"] = "no-referrer"
                 if scope["path"].startswith("/dashboard"):
                     headers["Content-Security-Policy"] = (
-                        "default-src 'none'; script-src 'self'; style-src 'self'; "
+                        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; "
                         "connect-src 'self' https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
                     )
             await send(message)

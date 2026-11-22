@@ -70,6 +70,9 @@ function showPanel(id) {
 
 function resetSession() {
   session = null;
+  byId("inspection-result").replaceChildren();
+  byId("inspect-status").textContent = "";
+  byId("upload-consent").checked = false;
   status.textContent = "";
   byId("locked").hidden = false;
   byId("workspace").hidden = true;
@@ -95,6 +98,7 @@ login.addEventListener("submit", async (event) => {
     byId("sign-out").hidden = false;
     showPanel("reports");
     await withSession(fetchReports);
+    byId("workspace").scrollIntoView();
   } catch (error) {
     loginStatus.textContent = error instanceof TypeError ? "Could not reach your server." : error.message;
   } finally {

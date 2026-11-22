@@ -4,9 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>AppGuardian Console</title>
+  <title>AppGuardian</title>
+  <meta name="theme-color" content="#0c1717">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
   <link rel="stylesheet" href="./styles.css">
   <script src="./dashboard.js" defer></script>
+  <script src="./home.js" defer></script>
 </head>
 <body>
   <header class="bar">
@@ -16,16 +20,28 @@
     </div>
   </header>
   <main>
-    <section id="locked" class="entry">
+    <section class="product-home">
       <div class="intro">
-        <h1>Review reports and device access.</h1>
-        <p>Open reports shared from Android, manage signed-in devices, and look up CVEs from your own assessments.</p>
+        <h1>What do you want to protect?</h1>
+        <p>Check an APK before installing it, or work through the steps to secure an account.</p>
       </div>
+      <div class="home-grid">
+        <article class="card"><h2>Check an APK</h2><p>Compare its fingerprint locally or send it for deeper inspection.</p><button type="button" id="open-scan">Check a file</button></article>
+        <article class="card"><h2>Secure an account</h2><p>Follow a recovery checklist and verify what changed.</p><button type="button" id="open-recovery" class="quiet">Start recovery</button></article>
+        <article class="card"><h2>Review reports</h2><p>Open reports shared from your Android device.</p><button type="button" id="open-reports" class="quiet">Open reports</button></article>
+      </div>
+      <button type="button" id="install-app" class="quiet">Install AppGuardian</button>
+    </section>
+    <section id="locked" class="entry">
       <form id="login" class="card">
         <h2>Sign in</h2>
-        <label>AppGuardian server
-          <input type="url" name="endpoint" id="endpoint" placeholder="https://guardian.example.com" autocomplete="url">
-        </label>
+        <details>
+          <summary>Server settings</summary>
+          <label>AppGuardian server
+            <input type="url" name="endpoint" id="endpoint" placeholder="https://guardian.example.com" autocomplete="url">
+          </label>
+          <p>Leave blank to use the server hosting this page.</p>
+        </details>
         <label>Email
           <input type="email" name="email" required maxlength="254" autocomplete="username">
         </label>
@@ -81,6 +97,32 @@
       </section>
     </section>
   </main>
+  <dialog id="scan-dialog" class="tool-dialog">
+    <h2>Check an APK</h2>
+    <label>Select an Android APK<input id="apk-file" type="file" accept=".apk,application/vnd.android.package-archive"></label>
+    <label>Publisher’s SHA-256 (optional)<input id="expected-hash" maxlength="128" spellcheck="false"></label>
+    <button type="button" id="hash-apk">Compare fingerprint</button>
+    <p id="hash-result" role="status" class="hash"></p>
+    <p>For permissions and signing verification, sign in and use a server with APK inspection enabled.</p>
+    <label class="check-label"><input id="upload-consent" type="checkbox">Send this APK to my AppGuardian server for one-time inspection.</label>
+    <button type="button" id="inspect-apk" class="quiet">Inspect on server</button>
+    <p id="inspect-status" role="status"></p>
+    <div id="inspection-result"></div>
+    <form method="dialog"><button class="quiet">Close</button></form>
+  </dialog>
+  <dialog id="recovery-dialog" class="tool-dialog">
+    <h2>Secure your account</h2>
+    <label>Language<select id="recovery-language"><option value="en">English</option><option value="hi">हिन्दी</option></select></label>
+    <div id="recovery-checklist"></div>
+    <p id="recovery-status" role="status"></p>
+    <p><a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer">Google</a> · <a href="https://account.microsoft.com/security" target="_blank" rel="noreferrer">Microsoft</a> · <a href="https://account.apple.com/" target="_blank" rel="noreferrer">Apple</a></p>
+    <form method="dialog"><button class="quiet">Close</button></form>
+  </dialog>
+  <dialog id="install-dialog">
+    <h2>Install AppGuardian</h2>
+    <p>On Mac or Windows, open this page in Chrome or Edge and use the browser’s install option. On iPhone, open it in Safari and choose Share, then Add to Home Screen.</p>
+    <form method="dialog"><button class="quiet">Close</button></form>
+  </dialog>
   <dialog id="revoke-dialog">
     <h2>Revoke this device?</h2>
     <p>Its sessions and stored reports will be removed. The device can enroll again using account credentials.</p>
