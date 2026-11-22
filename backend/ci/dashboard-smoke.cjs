@@ -54,8 +54,8 @@ async function request(path, method, body, token) {
     await page.getByText("1 of 4 steps confirmed by you.").waitFor();
     await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
     await page.getByRole("heading", { name: "Sign in" }).waitFor();
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.locator("#login").getByLabel("Email", { exact: true }).fill(email);
+    await page.locator("#login").getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.getByText("com.example.guardian.shared", { exact: true }).waitFor();
     assert.equal(await page.getByText("com.example.guardian.private", { exact: true }).count(), 0);
