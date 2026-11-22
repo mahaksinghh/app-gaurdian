@@ -66,6 +66,21 @@ status, evidence = request(endpoint, Path(sys.argv[2]).read_bytes(), headers)
 assert status == 200 and evidence["signature"] == "unverified", evidence
 assert request(endpoint, b"invalid APK", headers)[0] == 422
 print("Signed, unsigned and malformed APKs inspected through the isolated worker.")
+
+json_headers = {"Content-Type": "application/json", "Authorization": headers["Authorization"]}
+status, guidance = request("/v1/guide", dumps({
+    "scenario": "before-install", "language": "hi", "evidence": ["debuggable", "camera"], "use_ai": True,
+}).encode(), json_headers)
+assert status == 200 and guidance["mode"] == "rules-fallback", guidance
+assert guidance["steps"][-1]["id"] == "verify"
+
+status, assessment = request("/v1/assessments/kev", dumps({
+    "cve_ids": ["CVE-2021-44228", "CVE-2050-00000"],
+}).encode(), json_headers)
+assert status == 200 and assessment["license"] == "CC0-1.0", assessment
+assert [item["cveID"] for item in assessment["matches"]] == ["CVE-2021-44228"]
+assert assessment["unlisted_ids"] == ["CVE-2050-00000"]
+print("Bilingual guidance and licensed exact-ID vulnerability lookup passed.")
 PY
 
 test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$(docker compose ps -q worker)")" = none

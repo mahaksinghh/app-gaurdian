@@ -89,3 +89,36 @@ class ArchiveScan(BaseModel):
     report: ScanReport
     signature: Literal["verified", "unverified"]
     debuggable: bool
+
+
+EvidenceCode = Literal[
+    "sms", "contacts", "camera", "microphone", "location", "package-installer",
+    "accessibility", "debuggable", "cleartext", "signature-unverified",
+]
+Scenario = Literal["before-install", "installed-app", "account-incident"]
+Language = Literal["en", "hi"]
+Cve = Annotated[str, StringConstraints(pattern=r"^CVE-[0-9]{4}-[0-9]{4,19}$")]
+
+
+class GuidanceRequest(Input):
+    scenario: Scenario
+    language: Language = "en"
+    evidence: Annotated[list[EvidenceCode], Field(max_length=10)]
+    use_ai: bool = False
+
+
+class GuidanceStep(BaseModel):
+    id: str
+    title: str
+    instruction: str
+
+
+class Guidance(BaseModel):
+    mode: Literal["rules", "ai-prioritized", "rules-fallback"]
+    language: Language
+    steps: list[GuidanceStep]
+    scope: str
+
+
+class AssessmentRequest(Input):
+    cve_ids: Annotated[list[Cve], Field(min_length=1, max_length=50)]

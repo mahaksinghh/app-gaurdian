@@ -13,8 +13,13 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool, PoolTimeout
 from starlette.datastructures import MutableHeaders
 
+from .assistant import guide
+from .catalog import Assessment, load as load_catalog
 from .config import Settings
-from .models import ArchiveScan, Device, Login, Registration, ScanRecord, Session, StoreReport
+from .models import (
+    ArchiveScan, AssessmentRequest, Device, Guidance, GuidanceRequest, Login, Registration,
+    ScanRecord, Session, StoreReport,
+)
 from .scan_client import inspect_upload
 from .security import PASSWORDS, Vault, new_secret, password_matches, secret_hash
 
@@ -143,6 +148,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         selected = settings or Settings.from_env()
         app.state.settings = selected
         app.state.vault = Vault(selected.history_key)
+        app.state.catalog = (
+            load_catalog(selected.kev_path) if selected.kev_path and selected.kev_path.is_file() else None
+        )
         with ConnectionPool(
             selected.database_url,
             min_size=1,
@@ -247,6 +255,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "DELETE FROM guardian_scans WHERE account_id = %s AND device_id = %s",
                 (user.account_id, device_id),
             )
+
+    @app.post("/v1/guide")
+    async def guidance(body: GuidanceRequest, request: Request, user: Authenticated) -> Guidance:
+        return await guide(body, request.app.state.settings.advisor)
+
+    @app.post("/v1/assessments/kev")
+    def assess_cves(body: AssessmentRequest, request: Request, user: Authenticated) -> Assessment:
+        catalog = request.app.state.catalog
+        if catalog is None:
+            raise HTTPException(503, "The vulnerability catalog is unavailable.")
+        return catalog.assessment(body.cve_ids)
 
     @app.post("/v1/archives/scan")
     async def scan_archive(request: Request, user: Authenticated) -> ArchiveScan:

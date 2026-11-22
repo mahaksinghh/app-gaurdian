@@ -17,7 +17,15 @@ Run `docker compose up --build -d` and open the API documentation at `http://loc
 
 Send an authenticated `POST /v1/archives/scan` with `Content-Type: application/vnd.android.package-archive`, `X-AppGuardian-Scan-Consent: true`, and a raw standalone APK body up to 25 MiB. The worker returns an APK hash, package metadata, requested permissions, Android tooling's signing verification result, signer fingerprints when verified, and whether the tool found a debug flag. Each field describes evidence from the uploaded file. APK content and the result are held only for the request by this endpoint.
 
-The worker runs as a separate non-root container with no network interface, no database or AI credentials, a read-only filesystem, and bounded temporary storage. The API accesses it over a Unix socket. Android tooling runs with bounded output, CPU time, and deadlines. It parses package data without installing or running the app. The distribution's tool versions determine which APK formats are recognized. Treat an unverified signature as an inability to verify the signature. A successful signature check authenticates package bytes under that signer and requires independent trust in the signer.
+The worker runs as a separate non-root container with no external network interface, no database or AI credentials, a read-only filesystem, and bounded temporary storage. The API accesses it over a Unix socket. Android tooling runs with bounded output, CPU time, and deadlines. It parses package data without installing or running the app. The distribution's tool versions determine which APK formats are recognized. Treat an unverified signature as an inability to verify the signature. A successful signature check authenticates package bytes under that signer and requires independent trust in the signer.
+
+## Guided response and assessed CVE lookup
+
+Use authenticated `POST /v1/guide` with a scenario, language (`en` or `hi`), and selected evidence codes. The service constructs a fixed response plan with protective actions and a final verification step. When the user opts in with `use_ai: true` and an HTTPS chat-completions provider is configured, the provider receives only the language, scenario and selected category IDs. The provider can reorder evidence explanations. The API validates that order and uses its own bilingual action text. On timeout or invalid output, the deterministic sequence is returned.
+
+To enable the vulnerability catalog, run `docker compose --profile intelligence run --rm --build catalog` and `docker compose restart api`. Repeat to refresh it. The catalog CLI fetches and validates the official CISA mirror and installs the release atomically. [CISA catalog and CC0 license](https://github.com/cisagov/kev-data).
+
+Use authenticated `POST /v1/assessments/kev` with up to 50 CVE IDs from an authorized assessment. Exact matches include CISA's remediation guidance, source and release date. Package identity and an unlisted CVE cannot establish applicability or safety. Assessments are one-time responses and are kept out of scan history.
 
 ## Storage and deployment
 

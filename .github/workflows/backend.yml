@@ -54,6 +54,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
+      - run: docker compose --profile intelligence run --rm --build catalog
       - run: docker compose up --build --wait
       - run: bash backend/ci/worker-smoke.sh
       - if: always()
