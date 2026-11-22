@@ -53,6 +53,7 @@ class GuardianTest {
             assertTrue(result.signerSha256.isNotEmpty())
             assertEquals(installed.signerSha256, result.signerSha256)
             assertTrue(result.granted.isEmpty())
+            assertTrue(result.findings.any { it.title == "Debuggable build" })
 
             checkNotNull(resolver.openOutputStream(item, "wt")).use { it.write("Invalid APK".toByteArray()) }
             try {

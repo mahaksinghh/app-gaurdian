@@ -47,9 +47,10 @@ internal class PackageReview(private val context: Context) {
                         target.write(buffer, 0, count)
                     }
                 }
+                val manifest = ArchiveManifest.read(copy)
                 val info = manager.getPackageArchiveInfo(copy.absolutePath, flags)
                     ?: throw IOException("Android could not inspect this APK. It may be invalid or unsupported.")
-                info.toReview(digest.digest().hex())
+                info.toReview(digest.digest().hex(), manifest)
             } finally {
                 copy.delete()
             }
@@ -73,7 +74,7 @@ internal class PackageReview(private val context: Context) {
         return info.toReview(null)
     }
 
-    private fun PackageInfo.toReview(fileHash: String?): Review {
+    private fun PackageInfo.toReview(fileHash: String?, manifest: ArchiveManifest? = null): Review {
         val requested = requestedPermissions.orEmpty()
         val permissionFlags = requestedPermissionsFlags
         val granted = if (fileHash == null) {
@@ -87,6 +88,7 @@ internal class PackageReview(private val context: Context) {
             MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).hex()
         }.distinct().sorted()
         val appFlags = applicationInfo?.flags ?: 0
+        val debuggable = manifest?.debuggable ?: (appFlags and ApplicationInfo.FLAG_DEBUGGABLE != 0)
         val hasAccessibilityService = services.orEmpty().any {
             it.permission == "android.permission.BIND_ACCESSIBILITY_SERVICE"
         }
@@ -98,7 +100,13 @@ internal class PackageReview(private val context: Context) {
             signers,
             requested.toSet(),
             granted,
-            Evidence.review(requested.toSet(), appFlags and ApplicationInfo.FLAG_DEBUGGABLE != 0, hasAccessibilityService)
+            Evidence.review(
+                requested.toSet(),
+                debuggable,
+                hasAccessibilityService,
+                manifest?.testOnly == true,
+                manifest?.cleartextOptIn == true
+            )
         )
     }
 

@@ -16,7 +16,9 @@ internal object Evidence {
     fun review(
         permissions: Set<String>,
         debuggable: Boolean,
-        accessibilityService: Boolean
+        accessibilityService: Boolean,
+        testOnly: Boolean = false,
+        cleartextOptIn: Boolean = false
     ): List<Finding> = buildList {
         sensitive.forEach { (name, explanation) ->
             if ("android.permission.$name" in permissions) {
@@ -31,6 +33,12 @@ internal object Evidence {
         }
         if (debuggable) {
             add(Finding("Debuggable build", "The manifest allows app debugging. Confirm that this is the build you expected from the publisher."))
+        }
+        if (testOnly) {
+            add(Finding("Test-only build", "The manifest marks this package for testing. Confirm you intended to receive a test build."))
+        }
+        if (cleartextOptIn) {
+            add(Finding("Cleartext traffic opt-in", "The manifest explicitly opts into unencrypted connections. Android version and network security configuration can affect enforcement."))
         }
     }
 
