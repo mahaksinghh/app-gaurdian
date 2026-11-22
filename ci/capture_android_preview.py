@@ -1,6 +1,7 @@
 """Capture the published debug APK on a dedicated Android emulator."""
 
 import re
+import struct
 import subprocess
 import sys
 import time
@@ -11,6 +12,7 @@ PACKAGE = "com.appguardian.privacy"
 DEMO_FILE = "AppGuardian-demo.apk"
 OUTPUT = Path("preview-output")
 HIERARCHY = "/data/local/tmp/appguardian-preview.xml"
+viewport = (1080, 1920)
 
 
 def adb(*args: str) -> bytes:
@@ -53,10 +55,13 @@ def wait_for(label: str, *, partial: bool = False, swipe: str | None = None) -> 
         match = find(nodes, label, partial)
         if match is not None:
             return match
-        if swipe == "up":
-            adb("shell", "input", "swipe", "540", "1680", "540", "620", "320")
-        elif swipe == "down":
-            adb("shell", "input", "swipe", "540", "600", "540", "1680", "320")
+        if swipe:
+            width, height = viewport
+            top = height * 37 // 100
+            bottom = height * 78 // 100
+            start, end = (bottom, top) if swipe == "up" else (top, bottom)
+            adb("shell", "input", "swipe", str(width // 2), str(start),
+                str(width // 2), str(end), "480")
         else:
             time.sleep(0.4)
     raise RuntimeError(f"Timed out waiting for {label!r}")
@@ -95,9 +100,15 @@ def select_apk() -> None:
 
 
 def run(apk: str) -> None:
+    global viewport
     adb("shell", "settings", "put", "global", "hide_error_dialogs", "1")
     adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     adb("shell", "wm", "dismiss-keyguard")
+    adb("shell", "wm", "size", "1080x1920")
+    adb("shell", "wm", "density", "400")
+    time.sleep(2)
+    viewport = struct.unpack(">II", adb("exec-out", "screencap", "-p")[16:24])
+    print(f"Android preview resolution: {viewport}", flush=True)
     adb("install", "-r", apk)
     adb("push", apk, f"/sdcard/Download/{DEMO_FILE}")
     adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
@@ -105,14 +116,32 @@ def run(apk: str) -> None:
 
     launch()
     capture("01-home")
+    tap(wait_for("Account recovery"))
+    wait_for("If you suspect account access", partial=True, swipe="up")
+    capture("06-account-recovery")
 
+    failures = []
+    for name, phase in (("APK", capture_apk_review), ("installed app", capture_installed_review)):
+        try:
+            launch()
+            phase()
+        except RuntimeError as error:
+            failures.append(f"{name}: {error}")
+            capture(f"diagnostic-{name.replace(' ', '-')}")
+    if failures:
+        raise RuntimeError("; ".join(failures))
+
+
+def capture_apk_review() -> None:
     select_apk()
-    wait_for("Debuggable build")
+    wait_for("Target Android API", partial=True, swipe="up")
+    wait_for("Debuggable build", swipe="up")
     capture("03-apk-findings")
     wait_for("Protect and verify", swipe="up")
     capture("04-apk-evidence-and-guidance")
 
-    launch()
+
+def capture_installed_review() -> None:
     tap(wait_for("Review installed apps"))
     tap(wait_for(PACKAGE, swipe="up"))
     wait_for("Open app settings", swipe="up")
@@ -123,12 +152,6 @@ def run(apk: str) -> None:
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     wait_for("No permission grant changes were visible", partial=True, swipe="down")
     capture("07-permission-recheck")
-
-    launch()
-    tap(wait_for("Account recovery"))
-    wait_for("If you suspect account access", partial=True)
-    capture("06-account-recovery")
-
 
 OUTPUT.mkdir(exist_ok=True)
 try:
