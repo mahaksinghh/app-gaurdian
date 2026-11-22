@@ -29,6 +29,22 @@ class GuardianTest {
         screen.onNodeWithText("If you suspect account access", substring = true).assertExists()
     }
 
+    @Test fun permissionWatchPersistsEncryptedDataAndStopsOnRequest() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val installed = checkNotNull(PackageReview(context).installed(context.packageName))
+        val watch = PermissionWatch(context)
+        try {
+            assertTrue(context.packageName in watch.start(installed).packages)
+            assertTrue(context.packageName in PermissionWatch(context).restore().packages)
+            assertTrue(watch.check().lastCheckedAt != null)
+            val persisted = File(context.noBackupFilesDir, "permission-watch.enc").readBytes()
+            assertTrue(!persisted.toString(Charsets.UTF_8).contains(context.packageName))
+        } finally {
+            watch.stop(context.packageName)
+        }
+        assertTrue(context.packageName !in PermissionWatch(context).restore().packages)
+    }
+
     @Test
     @SdkSuppress(minSdkVersion = Build.VERSION_CODES.Q)
     fun reviewsRealSignedApkAndRejectsInvalidDocument() {

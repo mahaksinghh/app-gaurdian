@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import java.text.DateFormat
+import java.util.Date
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -27,6 +29,9 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private val scanner by lazy { PackageReview(applicationContext) }
+    private val watch by lazy { PermissionWatch(applicationContext) }
+    private var watchSummary by mutableStateOf(WatchSummary())
+    private var showWatch by mutableStateOf(false)
     private var review by mutableStateOf<Review?>(null)
     private var busy by mutableStateOf(false)
     private var status by mutableStateOf("")
@@ -71,9 +76,13 @@ class MainActivity : ComponentActivity() {
         review = null
         baseline = null
         showApps = false
+        showWatch = false
         val result = withContext(Dispatchers.IO) { load() }
         review = result
         baseline = result?.takeIf { it.fileSha256 == null }
+        if (baseline != null) {
+            watchSummary = withContext(Dispatchers.IO) { watch.restore() }
+        }
         status = if (result == null) "Android could no longer read this app." else ""
     }
 
@@ -97,6 +106,33 @@ class MainActivity : ComponentActivity() {
     private fun listApps() = runTask {
         apps = withContext(Dispatchers.IO) { scanner.launcherPackages() }
         showApps = true
+        showWatch = false
+    }
+
+    private fun openWatch() = runTask {
+        watchSummary = withContext(Dispatchers.IO) { watch.restore() }
+        showWatch = true
+        showApps = false
+        review = null
+        baseline = null
+    }
+
+    private fun toggleWatch(result: Review) = runTask {
+        watchSummary = withContext(Dispatchers.IO) {
+            val current = watch.restore()
+            if (result.packageName in current.packages) watch.stop(result.packageName) else watch.start(result)
+        }
+        val enabled = result.packageName in watchSummary.packages
+        status = if (enabled) "Permission monitoring enabled for this app." else "Permission monitoring stopped for this app."
+    }
+
+    private fun removeWatch(packageName: String) = runTask {
+        watchSummary = withContext(Dispatchers.IO) { watch.stop(packageName) }
+    }
+
+    private fun checkWatch() = runTask {
+        watchSummary = withContext(Dispatchers.IO) { watch.check() }
+        status = "Permission check finished for watched apps that Android exposes."
     }
 
     private fun verify() {
@@ -157,6 +193,7 @@ class MainActivity : ComponentActivity() {
                 }
                 item {
                     OutlinedButton(enabled = !busy, onClick = { listApps() }) { Text("Review installed apps") }
+                    TextButton(enabled = !busy, onClick = { openWatch() }) { Text("Permission monitor") }
                     if (showApps) {
                         Text("Android shows AppGuardian a limited list of apps with launcher entries.")
                         if (apps.isEmpty()) Text("No launcher apps are visible.")
@@ -170,6 +207,37 @@ class MainActivity : ComponentActivity() {
                 item {
                     AnimatedVisibility(busy) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     AnimatedVisibility(status.isNotBlank()) { Text(status) }
+                }
+                if (showWatch) {
+                    item {
+                        Text("Permission monitor", style = MaterialTheme.typography.headlineSmall)
+                        Text("Choose apps from Installed Apps to watch. Android schedules checks and can delay them. Only visible apps can be monitored.")
+                        watchSummary.lastCheckedAt?.let { Text("Last check: ${date(it)}") }
+                        if (watchSummary.packages.isEmpty()) Text("No apps are being monitored.")
+                        OutlinedButton(enabled = !busy && watchSummary.packages.isNotEmpty(), onClick = { checkWatch() }) {
+                            Text("Check watched apps")
+                        }
+                    }
+                    items(watchSummary.packages, key = { "watch:$it" }) { packageName ->
+                        ElevatedCard {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(packageName, style = MaterialTheme.typography.titleMedium)
+                                TextButton(enabled = !busy, onClick = { removeWatch(packageName) }) {
+                                    Text("Stop monitoring")
+                                }
+                            }
+                        }
+                    }
+                    if (watchSummary.events.isEmpty() && watchSummary.packages.isNotEmpty()) {
+                        item { Text("No recorded changes in the last 14 days.") }
+                    }
+                    items(watchSummary.events) { event ->
+                        Column {
+                            Text(event.packageName, style = MaterialTheme.typography.titleMedium)
+                            Text(date(event.checkedAt), style = MaterialTheme.typography.bodySmall)
+                            event.changes.forEach { Text(it) }
+                        }
+                    }
                 }
                 review?.let { result ->
                     item {
@@ -213,6 +281,13 @@ class MainActivity : ComponentActivity() {
                                 )
                             }) { Text("Open app settings") }
                             OutlinedButton(enabled = !busy, onClick = { verify() }) { Text("Recheck permissions") }
+                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                            Text(
+                                "Watch this app for permission changes. AppGuardian checks periodically when Android allows it and keeps up to 14 days of changes on this device."
+                            )
+                            TextButton(enabled = !busy, onClick = { toggleWatch(result) }) {
+                                Text(if (result.packageName in watchSummary.packages) "Stop monitoring" else "Watch permission changes")
+                            }
                         }
                     }
                 }
@@ -227,6 +302,8 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun date(value: Long): String = DateFormat.getDateTimeInstance().format(Date(value))
 
     @Composable
     private fun Hash(value: String) {
