@@ -12,5 +12,6 @@ Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9
 4. Use **Watch permission changes** on an installed app to opt into periodic encrypted monitoring. Open **Permission monitor** to read recent events or stop a watch. Android can delay background work.
 5. Use **Save report on this device** to keep a report in encrypted local history for up to seven days. You can delete single reports or clear the history.
 6. Open **Account recovery** for English or Hindi checklists and official account settings links for Google, Microsoft and Apple.
+7. Use **DNS protection** to choose a provider and optional domain block rules. Read the coverage limits, approve the Android VPN prompt, and stop it at any time.
 
 [Privacy and threat model](docs/privacy.md) · [Startup backlog](docs/backlog.md)

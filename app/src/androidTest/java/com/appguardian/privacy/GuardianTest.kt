@@ -3,9 +3,12 @@ package com.appguardian.privacy
 import android.content.ContentValues
 import android.os.Build
 import android.provider.MediaStore
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
@@ -30,6 +33,15 @@ class GuardianTest {
         screen.onNodeWithText("If you suspect account access", substring = true).assertExists()
         screen.onNodeWithText("हिन्दी").performScrollTo().performClick()
         screen.onNodeWithText("विश्वसनीय डिवाइस इस्तेमाल करें", substring = true).assertExists()
+    }
+
+    @Test fun dnsProtectionStaysOffUntilExplicitConsent() {
+        screen.onNodeWithText("DNS protection").performScrollTo().performClick()
+        screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Enable DNS protection"))
+        screen.onNodeWithText("Enable DNS protection").performClick()
+        screen.onNodeWithText("Allow DNS protection?").assertExists()
+        screen.onNodeWithText("Cancel").performClick()
+        assertEquals(null, DnsProtectionService.status.value.provider)
     }
 
     @Test fun scanHistorySavesOnlyWhenRequestedAndCanBeCleared() {

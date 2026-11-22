@@ -3,6 +3,7 @@ package com.appguardian.privacy
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.net.VpnService
 import android.os.Bundle
 import android.provider.Settings
 import java.text.DateFormat
@@ -33,6 +34,8 @@ class MainActivity : ComponentActivity() {
     private val history by lazy { ScanHistory(applicationContext) }
     private var savedReviews by mutableStateOf(emptyList<SavedReview>())
     private var showHistory by mutableStateOf(false)
+    private var showNetwork by mutableStateOf(false)
+    private var pendingDnsStart: Intent? = null
     private var viewingSaved by mutableStateOf(false)
     private var savedCurrent by mutableStateOf(false)
     private var watchSummary by mutableStateOf(WatchSummary())
@@ -44,6 +47,12 @@ class MainActivity : ComponentActivity() {
     private var apps by mutableStateOf(emptyList<String>())
     private var awaitingSettings by mutableStateOf(false)
     private var baseline: Review? = null
+
+    private val vpnConsent = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val serviceIntent = pendingDnsStart
+        pendingDnsStart = null
+        if (result.resultCode == RESULT_OK && serviceIntent != null) startDnsService(serviceIntent)
+    }
 
     private val picker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) runReview {
@@ -83,6 +92,7 @@ class MainActivity : ComponentActivity() {
         showApps = false
         showWatch = false
         showHistory = false
+        showNetwork = false
         viewingSaved = false
         savedCurrent = false
         val result = withContext(Dispatchers.IO) { load() }
@@ -111,11 +121,56 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun openNetwork() {
+        if (busy) return
+        showNetwork = true
+        showApps = false
+        showWatch = false
+        showHistory = false
+        review = null
+        baseline = null
+        status = ""
+    }
+
+    private fun requestVpn(provider: DnsProvider, rules: String) {
+        val serviceIntent = Intent(this, DnsProtectionService::class.java).setAction(DnsProtectionService.START)
+            .putExtra(DnsProtectionService.PROVIDER, provider.name)
+            .putExtra(DnsProtectionService.RULES, rules)
+        try {
+            val consent = VpnService.prepare(this)
+            if (consent == null) {
+                startDnsService(serviceIntent)
+            } else {
+                pendingDnsStart = serviceIntent
+                vpnConsent.launch(consent)
+            }
+        } catch (_: ActivityNotFoundException) {
+            status = "Android VPN consent is unavailable on this device."
+        } catch (_: SecurityException) {
+            status = "Android blocked DNS protection on this profile."
+        }
+    }
+
+    private fun startDnsService(intent: Intent) {
+        try {
+            startForegroundService(intent)
+        } catch (_: IllegalStateException) {
+            status = "Open AppGuardian again and retry DNS protection."
+        } catch (_: SecurityException) {
+            status = "Android blocked DNS protection on this profile."
+        }
+    }
+
+    private fun stopDnsService() {
+        stopService(Intent(this, DnsProtectionService::class.java))
+    }
+
     private fun listApps() = runTask {
         apps = withContext(Dispatchers.IO) { scanner.launcherPackages() }
         showApps = true
         showWatch = false
         showHistory = false
+        showNetwork = false
         review = null
         baseline = null
     }
@@ -125,6 +180,7 @@ class MainActivity : ComponentActivity() {
         showWatch = true
         showApps = false
         showHistory = false
+        showNetwork = false
         review = null
         baseline = null
     }
@@ -150,6 +206,7 @@ class MainActivity : ComponentActivity() {
     private fun openHistory() = runTask {
         savedReviews = withContext(Dispatchers.IO) { history.load() }
         showHistory = true
+        showNetwork = false
         showApps = false
         showWatch = false
         review = null
@@ -257,6 +314,7 @@ class MainActivity : ComponentActivity() {
                         TextButton(enabled = !busy, onClick = { openWatch() }) { Text("Permission monitor") }
                         TextButton(enabled = !busy, onClick = { openHistory() }) { Text("Scan history") }
                     }
+                    TextButton(enabled = !busy, onClick = { openNetwork() }) { Text("DNS protection") }
                     if (showApps) {
                         Text("Android shows AppGuardian a limited list of apps with launcher entries.")
                         if (apps.isEmpty()) Text("No launcher apps are visible.")
@@ -271,6 +329,7 @@ class MainActivity : ComponentActivity() {
                     AnimatedVisibility(busy) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
                     AnimatedVisibility(status.isNotBlank()) { Text(status) }
                 }
+                if (showNetwork) { item { DnsProtectionPanel(::requestVpn, ::stopDnsService) } }
                 if (showWatch) {
                     item {
                         Text("Permission monitor", style = MaterialTheme.typography.headlineSmall)
