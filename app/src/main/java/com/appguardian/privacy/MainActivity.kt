@@ -30,6 +30,11 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     private val scanner by lazy { PackageReview(applicationContext) }
     private val watch by lazy { PermissionWatch(applicationContext) }
+    private val history by lazy { ScanHistory(applicationContext) }
+    private var savedReviews by mutableStateOf(emptyList<SavedReview>())
+    private var showHistory by mutableStateOf(false)
+    private var viewingSaved by mutableStateOf(false)
+    private var savedCurrent by mutableStateOf(false)
     private var watchSummary by mutableStateOf(WatchSummary())
     private var showWatch by mutableStateOf(false)
     private var review by mutableStateOf<Review?>(null)
@@ -77,6 +82,9 @@ class MainActivity : ComponentActivity() {
         baseline = null
         showApps = false
         showWatch = false
+        showHistory = false
+        viewingSaved = false
+        savedCurrent = false
         val result = withContext(Dispatchers.IO) { load() }
         review = result
         baseline = result?.takeIf { it.fileSha256 == null }
@@ -107,12 +115,16 @@ class MainActivity : ComponentActivity() {
         apps = withContext(Dispatchers.IO) { scanner.launcherPackages() }
         showApps = true
         showWatch = false
+        showHistory = false
+        review = null
+        baseline = null
     }
 
     private fun openWatch() = runTask {
         watchSummary = withContext(Dispatchers.IO) { watch.restore() }
         showWatch = true
         showApps = false
+        showHistory = false
         review = null
         baseline = null
     }
@@ -133,6 +145,39 @@ class MainActivity : ComponentActivity() {
     private fun checkWatch() = runTask {
         watchSummary = withContext(Dispatchers.IO) { watch.check() }
         status = "Permission check finished for watched apps that Android exposes."
+    }
+
+    private fun openHistory() = runTask {
+        savedReviews = withContext(Dispatchers.IO) { history.load() }
+        showHistory = true
+        showApps = false
+        showWatch = false
+        review = null
+        baseline = null
+    }
+
+    private fun openSaved(saved: SavedReview) {
+        if (busy) return
+        showHistory = false
+        review = saved.review
+        baseline = null
+        viewingSaved = true
+        status = "Snapshot saved " + date(saved.savedAt)
+    }
+
+    private fun saveReport(snapshot: Review) = runTask {
+        withContext(Dispatchers.IO) { history.save(snapshot) }
+        savedCurrent = true
+        status = "Report saved on this device for up to 7 days."
+    }
+
+    private fun deleteSaved(id: String) = runTask {
+        savedReviews = withContext(Dispatchers.IO) { history.delete(id) }
+    }
+
+    private fun clearHistory() = runTask {
+        withContext(Dispatchers.IO) { history.clear() }
+        savedReviews = emptyList()
     }
 
     private fun verify() {
@@ -172,6 +217,21 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun GuardianScreen() {
         var recovery by remember { mutableStateOf(false) }
+        var confirmClear by remember { mutableStateOf(false) }
+        if (confirmClear) {
+            AlertDialog(
+                onDismissRequest = { confirmClear = false },
+                title = { Text("Clear scan history?") },
+                text = { Text("All saved reports on this device will be deleted.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmClear = false
+                        clearHistory()
+                    }) { Text("Clear history") }
+                },
+                dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
+            )
+        }
         Scaffold { insets ->
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(insets),
@@ -193,7 +253,10 @@ class MainActivity : ComponentActivity() {
                 }
                 item {
                     OutlinedButton(enabled = !busy, onClick = { listApps() }) { Text("Review installed apps") }
-                    TextButton(enabled = !busy, onClick = { openWatch() }) { Text("Permission monitor") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(enabled = !busy, onClick = { openWatch() }) { Text("Permission monitor") }
+                        TextButton(enabled = !busy, onClick = { openHistory() }) { Text("Scan history") }
+                    }
                     if (showApps) {
                         Text("Android shows AppGuardian a limited list of apps with launcher entries.")
                         if (apps.isEmpty()) Text("No launcher apps are visible.")
@@ -239,8 +302,32 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                if (showHistory) {
+                    item {
+                        Text("Scan history", style = MaterialTheme.typography.headlineSmall)
+                        Text("Reports you save stay encrypted on this device for up to 7 days.")
+                        if (savedReviews.isEmpty()) {
+                            Text("No saved reports.")
+                        } else {
+                            TextButton(enabled = !busy, onClick = { confirmClear = true }) { Text("Clear history") }
+                        }
+                    }
+                    items(savedReviews, key = { it.id }) { saved ->
+                        ElevatedCard {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(saved.review.packageName, style = MaterialTheme.typography.titleMedium)
+                                Text(date(saved.savedAt), style = MaterialTheme.typography.bodySmall)
+                                Row {
+                                    TextButton(enabled = !busy, onClick = { openSaved(saved) }) { Text("View report") }
+                                    TextButton(enabled = !busy, onClick = { deleteSaved(saved.id) }) { Text("Delete report") }
+                                }
+                            }
+                        }
+                    }
+                }
                 review?.let { result ->
                     item {
+                        if (viewingSaved) Text("Saved report", style = MaterialTheme.typography.labelLarge)
                         Text(result.packageName, style = MaterialTheme.typography.headlineSmall)
                         Text("Version ${result.version} · Target Android API ${result.targetSdk ?: "unknown"}")
                         Text("These findings describe observable capabilities. A scan cannot determine everything an app may do after installation.")
@@ -272,6 +359,11 @@ class MainActivity : ComponentActivity() {
                         Text("Protect and verify", style = MaterialTheme.typography.titleLarge)
                         if (result.fileSha256 != null) {
                             Text("Leave the APK uninstalled if its source or permissions are unexpected. Compare the hash or signing certificate with a value published by the developer through a trusted channel.")
+                        } else if (viewingSaved) {
+                            Text("Review the installed app again to check its current permissions.")
+                            OutlinedButton(enabled = !busy, onClick = { runReview { scanner.installed(result.packageName) } }) {
+                                Text("Check this app now")
+                            }
                         } else {
                             Text("Use Android Settings to review or revoke permissions. To remove an app, use the Uninstall control there if Android offers it.")
                             Button(enabled = !busy, onClick = {
@@ -289,14 +381,17 @@ class MainActivity : ComponentActivity() {
                                 Text(if (result.packageName in watchSummary.packages) "Stop monitoring" else "Watch permission changes")
                             }
                         }
+                        if (!viewingSaved) {
+                            TextButton(enabled = !busy && !savedCurrent, onClick = { saveReport(result) }) {
+                                Text(if (savedCurrent) "Saved on this device" else "Save report on this device")
+                            }
+                        }
                     }
                 }
                 item {
                     TextButton(onClick = { recovery = !recovery }) { Text(if (recovery) "Hide account recovery" else "Account recovery") }
                     AnimatedVisibility(recovery) {
-                        Text(
-                            "If you suspect account access, use a trusted device. Open the provider’s official app or website, change your password, sign out unknown sessions, review recovery details and enable multifactor authentication. Reopen the provider’s security page to verify the changes."
-                        )
+                        RecoveryGuide { url -> launchSystemAction(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                     }
                 }
             }

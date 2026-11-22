@@ -10,6 +10,7 @@ Open the repository in Android Studio with JDK 17, Android SDK 35 and Gradle 8.9
 2. Tap **Review installed apps** to select an Android-visible launcher app. Check requested and granted permissions.
 3. Tap **Open app settings** to review permissions or uninstall through Android. Return to compare grants with the previous snapshot in this app session.
 4. Use **Watch permission changes** on an installed app to opt into periodic encrypted monitoring. Open **Permission monitor** to read recent events or stop a watch. Android can delay background work.
-5. Open **Account recovery** for instructions to secure an account through its provider.
+5. Use **Save report on this device** to keep a report in encrypted local history for up to seven days. You can delete single reports or clear the history.
+6. Open **Account recovery** for English or Hindi checklists and official account settings links for Google, Microsoft and Apple.
 
 [Privacy and threat model](docs/privacy.md) · [Startup backlog](docs/backlog.md)

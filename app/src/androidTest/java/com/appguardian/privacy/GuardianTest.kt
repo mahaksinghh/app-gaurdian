@@ -5,6 +5,7 @@ import android.os.Build
 import android.provider.MediaStore
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
@@ -27,6 +28,25 @@ class GuardianTest {
         screen.onNodeWithText("Choose APK").assertExists()
         screen.onNodeWithText("Account recovery").performClick()
         screen.onNodeWithText("If you suspect account access", substring = true).assertExists()
+        screen.onNodeWithText("हिन्दी").performScrollTo().performClick()
+        screen.onNodeWithText("विश्वसनीय डिवाइस इस्तेमाल करें", substring = true).assertExists()
+    }
+
+    @Test fun scanHistorySavesOnlyWhenRequestedAndCanBeCleared() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val review = checkNotNull(PackageReview(context).installed(context.packageName))
+        val history = ScanHistory(context)
+        history.clear()
+        try {
+            assertTrue(history.load().isEmpty())
+            val saved = history.save(review)
+            assertEquals(listOf(saved), ScanHistory(context).load())
+            val bytes = File(context.noBackupFilesDir, "scan-history.enc").readBytes()
+            assertTrue(!bytes.toString(Charsets.UTF_8).contains(context.packageName))
+            assertTrue(history.delete(saved.id).isEmpty())
+        } finally {
+            history.clear()
+        }
     }
 
     @Test fun permissionWatchPersistsEncryptedDataAndStopsOnRequest() {
