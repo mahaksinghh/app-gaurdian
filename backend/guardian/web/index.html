@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>AppGuardian Console</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./dashboard.js" defer></script>
+</head>
+<body>
+  <header class="bar">
+    <div class="bar-inner">
+      <div class="brand"><span class="shield" aria-hidden="true"></span>AppGuardian</div>
+      <button id="sign-out" class="quiet" type="button" hidden>Sign out</button>
+    </div>
+  </header>
+  <main>
+    <section id="locked" class="entry">
+      <div class="intro">
+        <h1>Review reports and device access.</h1>
+        <p>Open reports shared from Android, manage signed-in devices, and look up CVEs from your own assessments.</p>
+      </div>
+      <form id="login" class="card">
+        <h2>Sign in</h2>
+        <label>AppGuardian server
+          <input type="url" name="endpoint" id="endpoint" placeholder="https://guardian.example.com" autocomplete="url">
+        </label>
+        <label>Email
+          <input type="email" name="email" required maxlength="254" autocomplete="username">
+        </label>
+        <label>Password
+          <input type="password" name="password" required minlength="12" maxlength="256" autocomplete="current-password">
+        </label>
+        <button type="submit">Sign in</button>
+        <p id="login-status" role="status"></p>
+      </form>
+    </section>
+
+    <section id="workspace" hidden>
+      <div class="heading">
+        <div>
+          <h1>Account console</h1>
+          <p id="connected-server"></p>
+        </div>
+      </div>
+      <nav aria-label="Console sections">
+        <button class="tab" type="button" data-panel="reports" aria-current="page">Shared reports</button>
+        <button class="tab" type="button" data-panel="devices">Devices</button>
+        <button class="tab" type="button" data-panel="assessment">CVE assessment</button>
+      </nav>
+      <p id="status" role="status"></p>
+
+      <section id="reports" class="panel">
+        <div class="section-heading">
+          <div><h2>Shared reports</h2><p>Reports appear here when you share them from the submitting device.</p></div>
+          <button id="refresh-reports" class="quiet" type="button">Refresh reports</button>
+        </div>
+        <div id="reports-list"></div>
+      </section>
+
+      <section id="devices" class="panel" hidden>
+        <div class="section-heading">
+          <div><h2>Account devices</h2><p>Revoke a session by revoking its device. This also removes reports from that device.</p></div>
+          <button id="refresh-devices" class="quiet" type="button">Refresh devices</button>
+        </div>
+        <div id="device-list"></div>
+      </section>
+
+      <section id="assessment" class="panel" hidden>
+        <div class="section-heading">
+          <div><h2>CVE assessment</h2><p>Look up up to 50 identifiers from an authorized assessment. Confirm affected products and versions separately.</p></div>
+        </div>
+        <form id="assess" class="card">
+          <label>CVE identifiers
+            <textarea name="identifiers" cols="40" rows="4" required maxlength="1800" spellcheck="false" placeholder="CVE-2021-44228"></textarea>
+          </label>
+          <button type="submit">Look up identifiers</button>
+        </form>
+        <div id="assessment-result"></div>
+      </section>
+    </section>
+  </main>
+  <dialog id="revoke-dialog">
+    <h2>Revoke this device?</h2>
+    <p>Its sessions and stored reports will be removed. The device can enroll again using account credentials.</p>
+    <div class="dialog-actions">
+      <button type="button" class="quiet" id="revoke-cancel">Cancel</button>
+      <button type="button" id="revoke-confirm">Revoke device</button>
+    </div>
+  </dialog>
+</body>
+</html>

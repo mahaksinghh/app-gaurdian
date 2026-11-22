@@ -1,0 +1,10 @@
+.gradle/
+**/build/
+.idea/
+local.properties
+*.jks
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+dashboard-preview.png

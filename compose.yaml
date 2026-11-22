@@ -1,0 +1,103 @@
+x-guardian: &guardian
+  build: ./backend
+  environment: &database-environment
+    GUARDIAN_DATABASE_URL: postgresql://guardian:${POSTGRES_PASSWORD:?Set a database password}@db:5432/guardian
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: guardian
+      POSTGRES_USER: guardian
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a database password}
+    volumes:
+      - guardian-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U guardian -d guardian]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *guardian
+    command: [python, -m, guardian.migrate, migrate]
+    depends_on:
+      db:
+        condition: service_healthy
+  api:
+    <<: *guardian
+    environment:
+      <<: *database-environment
+      GUARDIAN_HISTORY_KEY: ${GUARDIAN_HISTORY_KEY:?Set a history encryption key}
+      GUARDIAN_ENROLLMENT_SECRET: ${GUARDIAN_ENROLLMENT_SECRET:?Set an enrollment secret}
+      GUARDIAN_RETENTION_DAYS: ${GUARDIAN_RETENTION_DAYS:-7}
+      GUARDIAN_WORKER_SOCKET: /worker-ipc/guardian.sock
+      GUARDIAN_KEV_PATH: /catalog/cisa-kev.json
+      GUARDIAN_AI_URL: ${GUARDIAN_AI_URL:-}
+      GUARDIAN_AI_MODEL: ${GUARDIAN_AI_MODEL:-}
+      GUARDIAN_AI_TOKEN: ${GUARDIAN_AI_TOKEN:-}
+      GUARDIAN_DASHBOARD_ORIGINS: ${GUARDIAN_DASHBOARD_ORIGINS:-}
+    ports:
+      - '127.0.0.1:8000:8000'
+    volumes:
+      - worker-ipc:/worker-ipc:ro
+      - kev-data:/catalog:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://localhost:8000/readyz', timeout=2).close()"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
+  retention:
+    <<: *guardian
+    command: [sh, -ec, 'while true; do python -m guardian.migrate purge; sleep 3600; done']
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  catalog:
+    profiles: [intelligence]
+    build: ./backend
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command: [python, -m, guardian.catalog, fetch, /catalog/cisa-kev.json]
+    volumes:
+      - kev-data:/catalog
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    volumes:
+      - worker-ipc:/worker-ipc
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: '1.0'
+    healthcheck:
+      test: [CMD, python, -c, "import httpx; client = httpx.Client(transport=httpx.HTTPTransport(uds='/worker-ipc/guardian.sock')); client.get('http://worker/healthz', timeout=2).raise_for_status()"]
+      interval: 3s
+      timeout: 4s
+      retries: 10
+
+volumes:
+  kev-data:
+  worker-ipc:
+  guardian-data:
