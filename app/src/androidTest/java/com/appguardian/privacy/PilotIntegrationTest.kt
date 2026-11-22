@@ -111,6 +111,7 @@ class PilotIntegrationTest {
     }
 
     @Test
+    @SdkSuppress(minSdkVersion = Build.VERSION_CODES.S)
     fun vpnStartsWithAndroidConsentAndCanStop() {
         assumeTrue(arguments.getString("pilotVpn") == "true")
         val context = instrumentation.targetContext
@@ -185,8 +186,15 @@ class PilotIntegrationTest {
     private fun capture(name: String) {
         screen.waitForIdle()
         val screenshot = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
-        File(instrumentation.targetContext.cacheDir, name).outputStream().use {
-            screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
+        // Write through the emulator shell so the image survives the test runner uninstall.
+        val (stdout, stdin) = instrumentation.uiAutomation.executeShellCommandRw(
+            "dd of=/data/local/tmp/appguardian-$name"
+        )
+        ParcelFileDescriptor.AutoCloseInputStream(stdout).use { output ->
+            ParcelFileDescriptor.AutoCloseOutputStream(stdin).use { destination ->
+                check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, destination))
+            }
+            output.readBytes()
         }
     }
 }
