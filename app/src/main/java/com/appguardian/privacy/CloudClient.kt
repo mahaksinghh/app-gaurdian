@@ -103,7 +103,7 @@ internal class CloudClient(private val context: Context) {
         send(current.endpoint, "/v1/scans", "DELETE", requireToken(current))
     }
 
-    fun save(current: CloudProfile, review: Review) {
+    fun save(current: CloudProfile, review: Review, shareDashboard: Boolean = false) {
         val report = JSONObject()
             .put("kind", if (review.fileSha256 == null) "installed" else "apk")
             .put("package_name", review.packageName)
@@ -112,7 +112,9 @@ internal class CloudClient(private val context: Context) {
             .put("signer_sha256", JSONArray(review.signerSha256))
             .put("requested_permissions", JSONArray(review.requested.sorted()))
             .put("granted_permissions", JSONArray(review.granted.sorted()))
-        val body = JSONObject().put("report", report).put("consent", JSONObject().put("store_report", true))
+        val consent = JSONObject().put("store_report", true)
+        if (shareDashboard) consent.put("allow_account_dashboard", true)
+        val body = JSONObject().put("report", report).put("consent", consent)
         send(current.endpoint, "/v1/scans", "POST", requireToken(current), body)
     }
 

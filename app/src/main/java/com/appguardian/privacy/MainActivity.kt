@@ -9,6 +9,7 @@ import android.provider.Settings
 import java.text.DateFormat
 import java.util.Date
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
     private var showWatch by mutableStateOf(false)
     private var review by mutableStateOf<Review?>(null)
     private var busy by mutableStateOf(false)
+    private var scanningApk by mutableStateOf(false)
     private var status by mutableStateOf("")
     private var showApps by mutableStateOf(false)
     private var apps by mutableStateOf(emptyList<String>())
@@ -56,14 +58,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private val picker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) runReview {
-            scanner.archive(uri)
+        if (uri != null && !busy) {
+            scanningApk = true
+            runReview { scanner.archive(uri) }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
@@ -71,7 +77,14 @@ class MainActivity : ComponentActivity() {
                     onPrimary = Color(0xFF003828),
                     background = Color(0xFF0D1918),
                     surface = Color(0xFF142523),
-                    surfaceVariant = Color(0xFF203633)
+                    surfaceVariant = Color(0xFF203633),
+                    surfaceContainer = Color(0xFF192C28),
+                    surfaceContainerHigh = Color(0xFF233732),
+                    surfaceContainerHighest = Color(0xFF29403A),
+                    onBackground = Color(0xFFE6F1EC),
+                    onSurface = Color(0xFFE6F1EC),
+                    onSurfaceVariant = Color(0xFFB7CAC2),
+                    outline = Color(0xFF79928A)
                 )
             ) {
                 GuardianScreen()
@@ -119,6 +132,7 @@ class MainActivity : ComponentActivity() {
                 status = "Android could not finish the review. Choose an accessible APK up to 100 MiB, or try reviewing the app again."
             } finally {
                 busy = false
+                scanningApk = false
             }
         }
     }
@@ -311,19 +325,8 @@ class MainActivity : ComponentActivity() {
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
-                    Text("AppGuardian", style = MaterialTheme.typography.headlineLarge)
-                    Text("Review an APK before installing it, or check the permissions of an app on your phone.")
-                }
-                item {
-                    ElevatedCard {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("APK review", style = MaterialTheme.typography.titleLarge)
-                            Text("Choose one APK to scan on this device. AppGuardian does not upload or install it.")
-                            Button(enabled = !busy, onClick = { picker.launch("*/*") }) { Text("Choose APK") }
-                        }
-                    }
-                }
+                item { GuardianHeader() }
+                item { ApkEntryCard(scanningApk, !busy) { picker.launch("*/*") } }
                 item {
                     OutlinedButton(enabled = !busy, onClick = { listApps() }) { Text("Review installed apps") }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

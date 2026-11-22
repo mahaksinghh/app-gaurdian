@@ -63,6 +63,7 @@ internal fun CloudPanel(review: Review?) {
     var registering by remember { mutableStateOf(false) }
     var profile by remember { mutableStateOf<CloudProfile?>(null) }
     var consent by remember { mutableStateOf<ConsentAction?>(null) }
+    var shareDashboard by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<CloudHistoryEntry>?>(null) }
@@ -175,7 +176,10 @@ internal fun CloudPanel(review: Review?) {
                 Button(enabled = !busy, onClick = { consent = ConsentAction.UPLOAD_APK }) { Text("Inspect an APK in the cloud") }
                 inspection?.let { RemoteInspection(it) }
                 if (review != null) {
-                    OutlinedButton(enabled = !busy, onClick = { consent = ConsentAction.SAVE_REPORT }) {
+                    OutlinedButton(enabled = !busy, onClick = {
+                        shareDashboard = false
+                        consent = ConsentAction.SAVE_REPORT
+                    }) {
                         Text("Save current report to account")
                     }
                 }
@@ -217,14 +221,24 @@ internal fun CloudPanel(review: Review?) {
         AlertDialog(
             onDismissRequest = { consent = null },
             title = { Text(selected.title) },
-            text = { Text(selected.text) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(selected.text)
+                    if (selected == ConsentAction.SAVE_REPORT) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(shareDashboard, onCheckedChange = { shareDashboard = it })
+                            Text("Also share this report with my account’s signed-in dashboard.")
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 Button(onClick = {
                     consent = null
                     when (selected) {
                         ConsentAction.UPLOAD_APK -> if (session != null) picker.launch("*/*")
                         ConsentAction.SAVE_REPORT -> if (session != null && review != null) task {
-                            withContext(Dispatchers.IO) { client.save(session, review) }
+                            withContext(Dispatchers.IO) { client.save(session, review, shareDashboard) }
                             message = "Encrypted report saved to this device’s cloud history."
                         }
                         ConsentAction.CLEAR_HISTORY -> if (session != null) task {
