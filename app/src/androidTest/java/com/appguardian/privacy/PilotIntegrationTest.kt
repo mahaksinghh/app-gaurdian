@@ -4,16 +4,19 @@ import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Base64
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
@@ -115,6 +118,8 @@ class PilotIntegrationTest {
         try {
             screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("DNS protection"))
             screen.onNodeWithText("DNS protection").performClick()
+            screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasSetTextAction())
+            screen.onNode(hasSetTextAction()).performTextReplacement("guardian-ci.example")
             screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Enable DNS protection"))
             screen.onNodeWithText("Enable DNS protection").performClick()
             screen.onNodeWithText("Continue to Android consent").performClick()
@@ -131,6 +136,15 @@ class PilotIntegrationTest {
             }
             screen.waitUntil(5000) { DnsProtectionService.status.value.provider != null }
             assertEquals(DnsProvider.CLOUDFLARE, DnsProtectionService.status.value.provider)
+            shell("am start -W -n com.appguardian.probe/.ProbeActivity --ez query-dns true")
+            screen.waitUntil(6000) { DnsProtectionService.status.value.blocked >= 1 }
+            val logDeadline = SystemClock.elapsedRealtime() + 3000
+            var dnsResult = ""
+            while (!dnsResult.contains("fixture DNS result 3") && SystemClock.elapsedRealtime() < logDeadline) {
+                dnsResult = shell("logcat -d -s GuardianProbe:I")
+                SystemClock.sleep(150)
+            }
+            assertTrue("The probe did not receive a DNS name error.", dnsResult.contains("fixture DNS result 3"))
             screen.onNode(hasScrollToIndexAction()).performScrollToNode(hasText("Stop DNS protection"))
             capture("pilot-dns.png")
             screen.onNodeWithText("Stop DNS protection").performClick()
@@ -140,6 +154,33 @@ class PilotIntegrationTest {
             context.startService(Intent(context, DnsProtectionService::class.java).setAction(DnsProtectionService.STOP))
         }
     }
+
+    @Test
+    fun permissionWatchObservesAnActualAndroidGrantAndRevocation() {
+        assumeTrue(arguments.getString("pilotVpn") == "true")
+        val context = instrumentation.targetContext
+        val scanner = PackageReview(context)
+        val watch = PermissionWatch(context)
+        val packageName = "com.appguardian.probe"
+        val permission = "android.permission.CAMERA"
+        shell("pm revoke $packageName $permission")
+        val original = checkNotNull(scanner.installed(packageName))
+        assertTrue(permission in original.requested)
+        assertTrue(permission !in original.granted)
+        try {
+            watch.start(original)
+            shell("pm grant $packageName $permission")
+            assertTrue(watch.check().events.any { "Granted: $permission" in it.changes })
+            shell("pm revoke $packageName $permission")
+            assertTrue(watch.check().events.any { "Revoked: $permission" in it.changes })
+        } finally {
+            watch.stop(packageName)
+        }
+    }
+
+    private fun shell(command: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command))
+            .bufferedReader().use { it.readText() }
 
     private fun capture(name: String) {
         screen.waitForIdle()
