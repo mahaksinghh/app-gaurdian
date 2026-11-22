@@ -19,6 +19,7 @@ def adb(*args: str) -> bytes:
 
 def window() -> list[ET.Element]:
     try:
+        adb("shell", "rm", "-f", HIERARCHY)
         adb("shell", "uiautomator", "dump", HIERARCHY)
         return list(ET.fromstring(adb("exec-out", "cat", HIERARCHY)).iter("node"))
     except (subprocess.SubprocessError, ET.ParseError):
@@ -45,9 +46,9 @@ def wait_for(label: str, *, partial: bool = False, swipe: str | None = None) -> 
         if match is not None:
             return match
         if swipe == "up":
-            adb("shell", "input", "swipe", "540", "1850", "540", "620", "320")
+            adb("shell", "input", "swipe", "540", "1680", "540", "620", "320")
         elif swipe == "down":
-            adb("shell", "input", "swipe", "540", "600", "540", "1850", "320")
+            adb("shell", "input", "swipe", "540", "600", "540", "1680", "320")
         else:
             time.sleep(0.4)
     raise RuntimeError(f"Timed out waiting for {label!r}")
@@ -75,15 +76,10 @@ def launch() -> None:
 
 def select_apk() -> None:
     tap(wait_for("Choose APK"))
-    nodes = window()
-    if (document := find(nodes, DEMO_FILE)) is None:
-        drawer = find(nodes, "Show roots")
-        if drawer is None:
-            drawer = find(nodes, "Open navigation drawer")
-        if drawer is not None:
-            tap(drawer)
-        else:
-            adb("shell", "input", "tap", "65", "127")
+    try:
+        document = wait_for(DEMO_FILE)
+    except RuntimeError:
+        tap(wait_for("Show roots"))
         tap(wait_for("Downloads"))
         document = wait_for(DEMO_FILE)
     capture("02-file-picker")
@@ -91,7 +87,7 @@ def select_apk() -> None:
 
 
 def run(apk: str) -> None:
-    adb("shell", "wm", "size", "1080x2160")
+    adb("shell", "wm", "size", "1080x1920")
     adb("shell", "wm", "density", "420")
     adb("install", "-r", apk)
     adb("push", apk, f"/sdcard/Download/{DEMO_FILE}")
@@ -114,7 +110,6 @@ def run(apk: str) -> None:
     launch()
     tap(wait_for("Review installed apps"))
     tap(wait_for(PACKAGE, swipe="up"))
-    wait_for("Target Android API", partial=True)
     wait_for("Open app settings", swipe="up")
     capture("05-installed-app")
     tap(wait_for("Open app settings"))
