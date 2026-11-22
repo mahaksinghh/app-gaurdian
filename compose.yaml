@@ -5,6 +5,7 @@ x-guardian: &guardian
     GUARDIAN_HISTORY_KEY: ${GUARDIAN_HISTORY_KEY:?Set a history encryption key}
     GUARDIAN_ENROLLMENT_SECRET: ${GUARDIAN_ENROLLMENT_SECRET:?Set an enrollment secret}
     GUARDIAN_RETENTION_DAYS: ${GUARDIAN_RETENTION_DAYS:-7}
+    GUARDIAN_WORKER_SOCKET: /worker-ipc/guardian.sock
   read_only: true
   tmpfs:
     - /tmp
@@ -35,9 +36,13 @@ services:
     <<: *guardian
     ports:
       - '127.0.0.1:8000:8000'
+    volumes:
+      - worker-ipc:/worker-ipc:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
+      worker:
+        condition: service_healthy
     healthcheck:
       test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://localhost:8000/readyz', timeout=2).close()"]
       interval: 10s
@@ -51,5 +56,27 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
+    volumes:
+      - worker-ipc:/worker-ipc
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: '1.0'
+    healthcheck:
+      test: [CMD, python, -c, "import httpx; client = httpx.Client(transport=httpx.HTTPTransport(uds='/worker-ipc/guardian.sock')); client.get('http://worker/healthz', timeout=2).raise_for_status()"]
+      interval: 3s
+      timeout: 4s
+      retries: 10
+
 volumes:
+  worker-ipc:
   guardian-data:

@@ -10,6 +10,7 @@ class Settings:
     history_key: bytes
     enrollment_secret: str
     retention_days: int = 7
+    worker_socket: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -22,6 +23,7 @@ class Settings:
             history_key=key,
             enrollment_secret=os.environ["GUARDIAN_ENROLLMENT_SECRET"],
             retention_days=int(os.environ.get("GUARDIAN_RETENTION_DAYS", "7")),
+            worker_socket=os.environ.get("GUARDIAN_WORKER_SOCKET"),
         )
 
     def __post_init__(self) -> None:

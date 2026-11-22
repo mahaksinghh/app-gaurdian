@@ -82,3 +82,10 @@ class ScanRecord(BaseModel):
     expires_at: datetime
     origin: Literal["device-reported"] = "device-reported"
     report: ScanReport
+
+
+class ArchiveScan(BaseModel):
+    origin: Literal["worker-inspected"] = "worker-inspected"
+    report: ScanReport
+    signature: Literal["verified", "unverified"]
+    debuggable: bool

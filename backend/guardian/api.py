@@ -14,7 +14,8 @@ from psycopg_pool import ConnectionPool, PoolTimeout
 from starlette.datastructures import MutableHeaders
 
 from .config import Settings
-from .models import Device, Login, Registration, ScanRecord, Session, StoreReport
+from .models import ArchiveScan, Device, Login, Registration, ScanRecord, Session, StoreReport
+from .scan_client import inspect_upload
 from .security import PASSWORDS, Vault, new_secret, password_matches, secret_hash
 
 
@@ -34,7 +35,7 @@ class JsonBodyLimit:
                 MutableHeaders(scope=message)["Cache-Control"] = "no-store"
             await send(message)
 
-        if scope["method"] not in {"POST", "PUT", "PATCH"}:
+        if scope["method"] not in {"POST", "PUT", "PATCH"} or scope["path"] == "/v1/archives/scan":
             return await self.app(scope, receive, no_store)
 
         body = bytearray()
@@ -246,6 +247,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "DELETE FROM guardian_scans WHERE account_id = %s AND device_id = %s",
                 (user.account_id, device_id),
             )
+
+    @app.post("/v1/archives/scan")
+    async def scan_archive(request: Request, user: Authenticated) -> ArchiveScan:
+        return await inspect_upload(request, request.app.state.settings.worker_socket)
 
     @app.post("/v1/scans", status_code=201)
     def store_scan(body: StoreReport, request: Request, user: Authenticated) -> ScanRecord:
