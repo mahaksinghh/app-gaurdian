@@ -47,6 +47,8 @@ private enum class ConsentAction(val title: String, val text: String) {
         "The server receives the package identifier, fingerprints and permission list, then keeps the encrypted report for its retention period."),
     CLEAR_HISTORY("Delete cloud reports from this device?",
         "This clears the reports submitted by this device. Other device histories stay in the account."),
+    DELETE_ACCOUNT("Delete this cloud account?",
+        "This removes the account, devices, sessions and stored cloud reports. Local reports on this phone remain available."),
     FORGET_DEVICE("Forget device credentials on this phone?",
         "You will need to sign in as a new device. Use the account dashboard to revoke the previous device and its stored reports.")
 }
@@ -64,6 +66,7 @@ internal fun CloudPanel(review: Review?) {
     var profile by remember { mutableStateOf<CloudProfile?>(null) }
     var consent by remember { mutableStateOf<ConsentAction?>(null) }
     var shareDashboard by remember { mutableStateOf(false) }
+    var confirmationPassword by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<CloudHistoryEntry>?>(null) }
@@ -88,6 +91,7 @@ internal fun CloudPanel(review: Review?) {
                     409 -> "An account already exists. Sign in instead."
                     413 -> "Choose an APK no larger than 25 MiB."
                     422 -> "The server could not use those details or inspect the selected file."
+                    429 -> "Too many requests. Wait a few minutes and try again."
                     else -> "The server could not complete the request."
                 }
             } catch (_: IllegalArgumentException) {
@@ -172,6 +176,10 @@ internal fun CloudPanel(review: Review?) {
                         message = if (revoked) "Signed out." else "Signed out on this device. The server session could not be revoked."
                     }
                 }) { Text("Sign out") }
+                TextButton(enabled = !busy, onClick = {
+                    confirmationPassword = ""
+                    consent = ConsentAction.DELETE_ACCOUNT
+                }) { Text("Delete cloud account") }
                 HorizontalDivider()
                 Button(enabled = !busy, onClick = { consent = ConsentAction.UPLOAD_APK }) { Text("Inspect an APK in the cloud") }
                 inspection?.let { RemoteInspection(it) }
@@ -219,11 +227,23 @@ internal fun CloudPanel(review: Review?) {
     }
     consent?.let { selected ->
         AlertDialog(
-            onDismissRequest = { consent = null },
+            onDismissRequest = {
+                consent = null
+                confirmationPassword = ""
+            },
             title = { Text(selected.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(selected.text)
+                    if (selected == ConsentAction.DELETE_ACCOUNT) {
+                        OutlinedTextField(
+                            confirmationPassword, { confirmationPassword = it }, Modifier.fillMaxWidth(),
+                            label = { Text("Confirm with your password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true
+                        )
+                    }
                     if (selected == ConsentAction.SAVE_REPORT) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(shareDashboard, onCheckedChange = { shareDashboard = it })
@@ -233,28 +253,46 @@ internal fun CloudPanel(review: Review?) {
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    consent = null
-                    when (selected) {
-                        ConsentAction.UPLOAD_APK -> if (session != null) picker.launch("*/*")
-                        ConsentAction.SAVE_REPORT -> if (session != null && review != null) task {
-                            withContext(Dispatchers.IO) { client.save(session, review, shareDashboard) }
-                            message = "Encrypted report saved to this device’s cloud history."
-                        }
-                        ConsentAction.CLEAR_HISTORY -> if (session != null) task {
-                            withContext(Dispatchers.IO) { client.clearHistory(session) }
-                            results = emptyList()
-                        }
-                        ConsentAction.FORGET_DEVICE -> task {
-                            withContext(Dispatchers.IO) { client.forget() }
-                            profile = null
-                            email = ""
-                            message = "Device credentials removed from this phone."
+                Button(
+                    enabled = selected != ConsentAction.DELETE_ACCOUNT || confirmationPassword.length >= 12,
+                    onClick = {
+                        consent = null
+                        val enteredPassword = confirmationPassword
+                        confirmationPassword = ""
+                        when (selected) {
+                            ConsentAction.UPLOAD_APK -> if (session != null) picker.launch("*/*")
+                            ConsentAction.SAVE_REPORT -> if (session != null && review != null) task {
+                                withContext(Dispatchers.IO) { client.save(session, review, shareDashboard) }
+                                message = "Encrypted report saved to this device’s cloud history."
+                            }
+                            ConsentAction.CLEAR_HISTORY -> if (session != null) task {
+                                withContext(Dispatchers.IO) { client.clearHistory(session) }
+                                results = emptyList()
+                            }
+                            ConsentAction.DELETE_ACCOUNT -> if (session != null) task {
+                                withContext(Dispatchers.IO) { client.deleteAccount(session, enteredPassword) }
+                                profile = null
+                                results = null
+                                inspection = null
+                                guidance = null
+                                message = "Cloud account and reports deleted."
+                            }
+                            ConsentAction.FORGET_DEVICE -> task {
+                                withContext(Dispatchers.IO) { client.forget() }
+                                profile = null
+                                email = ""
+                                message = "Device credentials removed from this phone."
+                            }
                         }
                     }
-                }) { Text("Confirm") }
+                ) { Text("Confirm") }
             },
-            dismissButton = { TextButton(onClick = { consent = null }) { Text("Cancel") } }
+            dismissButton = {
+                TextButton(onClick = {
+                    consent = null
+                    confirmationPassword = ""
+                }) { Text("Cancel") }
+            }
         )
     }
 }

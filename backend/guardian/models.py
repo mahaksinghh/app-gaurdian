@@ -33,6 +33,11 @@ class Login(AccountCredentials):
         return self
 
 
+class DeleteAccount(Input):
+    password: Annotated[SecretStr, Field(min_length=12, max_length=256)]
+    confirm: Literal[True]
+
+
 class Session(BaseModel):
     token: str
     device_id: UUID

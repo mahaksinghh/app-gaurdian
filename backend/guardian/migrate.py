@@ -15,6 +15,7 @@ def purge_expired(database_url: str) -> tuple[int, int]:
     with psycopg.connect(database_url, connect_timeout=5) as connection:
         scans = connection.execute("DELETE FROM guardian_scans WHERE expires_at <= now()")
         sessions = connection.execute("DELETE FROM guardian_sessions WHERE expires_at <= now()")
+        connection.execute("DELETE FROM guardian_auth_limits WHERE window_start < now() - interval '1 hour'")
         return scans.rowcount, sessions.rowcount
 
 

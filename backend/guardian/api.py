@@ -1,6 +1,7 @@
 import hmac
 from contextlib import asynccontextmanager
 from pathlib import Path
+from threading import BoundedSemaphore
 from dataclasses import dataclass
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -20,7 +21,7 @@ from .assistant import guide
 from .catalog import Assessment, load as load_catalog
 from .config import Settings, dashboard_origins_from_env
 from .models import (
-    ArchiveScan, AssessmentRequest, Device, Guidance, GuidanceRequest, Login, Registration,
+    ArchiveScan, AssessmentRequest, DeleteAccount, Device, Guidance, GuidanceRequest, Login, Registration,
     ScanRecord, Session, StoreReport,
 )
 from .scan_client import inspect_upload
@@ -87,6 +88,39 @@ class Principal:
 
 
 bearer = HTTPBearer(auto_error=False)
+password_budget = BoundedSemaphore(4)
+
+
+def password_work(action, *args):
+    if not password_budget.acquire(timeout=0.5):
+        raise HTTPException(429, "Try again shortly.", {"Retry-After": "1"})
+    try:
+        return action(*args)
+    finally:
+        password_budget.release()
+
+
+def throttle_auth(request: Request, operation: str, subject: bytes) -> None:
+    client = request.client.host if request.client else "unknown"
+    vault = request.app.state.vault
+    with request.app.state.pool.connection() as db:
+        for bucket_hash, limit in (
+            (vault.auth_bucket(operation, client), 48),
+            (vault.auth_bucket(operation, client, subject), 8),
+        ):
+            row = db.execute(
+                """
+                INSERT INTO guardian_auth_limits (bucket_hash, window_start, hits)
+                VALUES (%s, date_bin('10 minutes', now(), '1970-01-01 00:00:00+00'::timestamptz), 1)
+                ON CONFLICT (bucket_hash, window_start) DO UPDATE
+                SET hits = LEAST(guardian_auth_limits.hits + 1, 49)
+                RETURNING hits
+                """,
+                (bucket_hash,),
+            ).fetchone()
+            if row["hits"] > limit:
+                raise HTTPException(429, "Try again later.", {"Retry-After": "600"})
+
 
 
 def unauthenticated() -> HTTPException:
@@ -209,7 +243,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not hmac.compare_digest(supplied, request.app.state.settings.enrollment_secret.encode()):
             raise HTTPException(403, "Enrollment is unavailable.")
         login_hash = request.app.state.vault.login_hash(body.email)
-        password_hash = PASSWORDS.hash(body.password.get_secret_value())
+        throttle_auth(request, "registration", login_hash)
+        password_hash = password_work(PASSWORDS.hash, body.password.get_secret_value())
         account_id = uuid4()
         with request.app.state.pool.connection() as db:
             row = db.execute(
@@ -226,11 +261,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/v1/auth/login", response_model_exclude_none=True)
     def login(body: Login, request: Request) -> Session:
         login_hash = request.app.state.vault.login_hash(body.email)
+        throttle_auth(request, "login", login_hash)
         with request.app.state.pool.connection() as db:
             account = db.execute(
                 "SELECT id, password_hash FROM guardian_accounts WHERE login_hash = %s", (login_hash,)
             ).fetchone()
-        if not password_matches(account["password_hash"] if account else None, body.password.get_secret_value()):
+        if not password_work(
+            password_matches, account["password_hash"] if account else None, body.password.get_secret_value()
+        ):
             raise unauthenticated()
         device_secret = body.device_secret.get_secret_value() if body.device_secret is not None else None
         with request.app.state.pool.connection() as db:
@@ -240,6 +278,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def logout(request: Request, user: Authenticated) -> None:
         with request.app.state.pool.connection() as db:
             db.execute("DELETE FROM guardian_sessions WHERE token_hash = %s", (user.token_hash,))
+
+    @app.post("/v1/account/delete", status_code=204, response_class=Response)
+    def delete_account(body: DeleteAccount, request: Request, user: Authenticated) -> None:
+        throttle_auth(request, "account-deletion", user.account_id.bytes)
+        with request.app.state.pool.connection() as db:
+            row = db.execute(
+                "SELECT password_hash FROM guardian_accounts WHERE id = %s", (user.account_id,)
+            ).fetchone()
+        if not password_work(
+            password_matches, row["password_hash"] if row else None, body.password.get_secret_value()
+        ):
+            raise unauthenticated()
+        with request.app.state.pool.connection() as db:
+            db.execute("DELETE FROM guardian_accounts WHERE id = %s", (user.account_id,))
 
     @app.get("/v1/devices")
     def devices(request: Request, user: Authenticated) -> list[Device]:

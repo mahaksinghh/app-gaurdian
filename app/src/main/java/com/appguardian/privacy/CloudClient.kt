@@ -88,6 +88,12 @@ internal class CloudClient(private val context: Context) {
 
     fun forget() = store.clear()
 
+    fun deleteAccount(current: CloudProfile, password: String) {
+        val body = JSONObject().put("password", password).put("confirm", true)
+        send(current.endpoint, "/v1/account/delete", "POST", requireToken(current), body)
+        forget()
+    }
+
     fun history(current: CloudProfile): List<CloudHistoryEntry> {
         val rows = JSONArray(send(current.endpoint, "/v1/scans?limit=10", "GET", requireToken(current)))
         return List(rows.length().coerceAtMost(10)) {

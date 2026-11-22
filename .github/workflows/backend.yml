@@ -38,7 +38,7 @@ jobs:
           GUARDIAN_TEST_DATABASE_URL: postgresql://guardian:guardian_ci_only@localhost:5432/guardian
 
   isolated-worker:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       POSTGRES_PASSWORD: guardian_worker_ci_only

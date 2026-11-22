@@ -98,7 +98,8 @@ class PilotIntegrationTest {
             assertEquals(1, client.history(restored).size)
             client.clearHistory(restored)
             assertTrue(client.history(restored).isEmpty())
-            assertTrue(client.signOut(restored).second)
+            client.deleteAccount(restored, password)
+            assertNull(client.profile())
         } finally {
             resolver.delete(document, null, null)
             client.forget()
@@ -136,7 +137,7 @@ class PilotIntegrationTest {
             screen.waitUntil(5000) { DnsProtectionService.status.value.provider == null }
             assertNull(DnsProtectionService.status.value.provider)
         } finally {
-            context.stopService(Intent(context, DnsProtectionService::class.java))
+            context.startService(Intent(context, DnsProtectionService::class.java).setAction(DnsProtectionService.STOP))
         }
     }
 

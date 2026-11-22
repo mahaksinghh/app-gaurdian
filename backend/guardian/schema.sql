@@ -45,3 +45,13 @@ CREATE INDEX IF NOT EXISTS guardian_scan_expiry_idx ON guardian_scans(expires_at
 ALTER TABLE guardian_scans ADD COLUMN IF NOT EXISTS shared_with_account boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS guardian_scan_shared_idx ON guardian_scans(account_id, created_at DESC)
     WHERE shared_with_account;
+
+
+CREATE TABLE IF NOT EXISTS guardian_auth_limits (
+    bucket_hash bytea NOT NULL,
+    window_start timestamptz NOT NULL,
+    hits smallint NOT NULL CHECK (hits > 0),
+    PRIMARY KEY (bucket_hash, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS guardian_auth_limits_expiry_idx ON guardian_auth_limits(window_start);

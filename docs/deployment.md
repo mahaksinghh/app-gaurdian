@@ -28,7 +28,7 @@ docker compose up --build --wait
 curl --fail http://127.0.0.1:8000/readyz
 ```
 
-The API binds to loopback. For Android cloud connection, use an HTTPS reverse proxy in front of the API with a certificate trusted by the device. Configure the proxy to stream APK uploads, bound request bodies to 25 MiB plus transport overhead, and allow up to 80 seconds for a scan response. Rate-limit sign-in, enrollment and archive endpoints. Use a managed secrets store and a private PostgreSQL network; obtain a TLS DSN when using a separate database host.
+The API binds to loopback. For Android cloud connection, use an HTTPS reverse proxy in front of the API with a certificate trusted by the device. Configure the proxy to stream APK uploads, bound request bodies to 25 MiB plus transport overhead, and allow up to 80 seconds for a scan response. Rate-limit sign-in, enrollment and archive endpoints. Have the proxy overwrite forwarding headers and configure the API to trust only that proxy for client addresses. Use a managed secrets store and a private PostgreSQL network; obtain a TLS DSN when using a separate database host.
 
 For example, with a valid DNS name pointed at your proxy host, a Caddy site can forward `guardian.example.com` to `127.0.0.1:8000`. Keep the worker isolated and reach it only through its mounted Unix socket. Open the website at `https://guardian.example.com/dashboard/` or use the optional [Vercel setup](../backend/README.md#web-console).
 

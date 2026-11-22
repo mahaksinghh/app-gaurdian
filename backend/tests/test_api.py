@@ -148,3 +148,30 @@ def test_sharing_requires_second_consent_and_stays_in_account(service):
     assert client.get("/v1/account/scans", headers=headers(outsider)).json() == []
     assert client.get("/v1/scans", headers=headers(browser)).json() == []
     assert client.delete(f"/v1/scans/{shared.json()['id']}", headers=headers(browser)).status_code == 404
+
+
+def test_authentication_throttles_repeated_attempts(service):
+    client, _ = service
+    email, _ = register(client)
+    for _ in range(8):
+        response = client.post("/v1/auth/login", json={"email": email, "password": "incorrect-ci-password"})
+        assert response.status_code == 401
+    limited = client.post("/v1/auth/login", json={"email": email, "password": PASSWORD})
+    assert limited.status_code == 429
+    assert limited.headers["Retry-After"] == "600"
+
+
+def test_account_deletion_requires_password_and_revokes_all_devices(service):
+    client, dsn = service
+    email, first = register(client)
+    second = client.post("/v1/auth/login", json={"email": email, "password": PASSWORD}).json()
+    saved = client.post("/v1/scans", headers=headers(first), json=report())
+    assert saved.status_code == 201
+    route = "/v1/account/delete"
+    assert client.post(route, headers=headers(second), json={"password": PASSWORD, "confirm": False}).status_code == 422
+    assert client.post(route, headers=headers(second), json={"password": "wrong-ci-password", "confirm": True}).status_code == 401
+    assert client.post(route, headers=headers(second), json={"password": PASSWORD, "confirm": True}).status_code == 204
+    for session in (first, second):
+        assert client.get("/v1/scans", headers=headers(session)).status_code == 401
+    with psycopg.connect(dsn) as db:
+        assert db.execute("SELECT 1 FROM guardian_scans WHERE id = %s", (UUID(saved.json()["id"]),)).fetchone() is None

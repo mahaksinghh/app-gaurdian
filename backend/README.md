@@ -10,7 +10,7 @@ Run `docker compose up --build -d` and open the API documentation at `http://loc
 
 1. Call `POST /v1/auth/register` with email, password and the private enrollment secret. Save the returned device ID and secret in protected storage. The endpoint is for an operator-managed pilot.
 2. Use the session token as `Authorization: Bearer <token>`. To sign in to an existing device's history, pass its ID and device secret together with account credentials to `POST /v1/auth/login`.
-3. Save a report with `POST /v1/scans` and explicit `consent.store_report: true`. Use `GET /v1/scans` and `DELETE /v1/scans` to view and clear history on that device. A user can revoke another device belonging to the same account, which removes that device's tokens and reports.
+3. Save a report with `POST /v1/scans` and explicit `consent.store_report: true`. Use `GET /v1/scans` and `DELETE /v1/scans` to view and clear history on that device. A user can revoke a device on the same account to remove its tokens and reports. Password-confirmed account deletion removes the account and its associated device records, sessions, and scans from the live database.
 4. Run `docker compose exec api python -m guardian.migrate purge` to delete expired data immediately.
 
 ## One-time APK inspection
@@ -35,7 +35,7 @@ For optional Vercel hosting, connect this repository, set the project root to `b
 
 ## Storage and deployment
 
-Report content uses AES-256-GCM with the account, device and record IDs bound to the ciphertext. PostgreSQL still stores IDs and retention timestamps. The service stores a keyed lookup of login identifiers, Argon2id password hashes, and SHA-256 hashes of random session and device tokens. Expired reports become inaccessible immediately and are purged by the retention job. Infrastructure backups require their own retention and deletion policy.
+Report content uses AES-256-GCM with the account, device and record IDs bound to the ciphertext. PostgreSQL still stores IDs and retention timestamps. The service stores a keyed lookup of login identifiers, Argon2id password hashes, and SHA-256 hashes of random session and device tokens. PostgreSQL also stores short-lived keyed buckets to rate-limit authentication by source and subject. Expired reports become inaccessible immediately and are purged by the retention job. Infrastructure backups require their own retention and deletion policy.
 
 Keep this development stack bound to loopback. Before external deployment, place the API behind HTTPS, set request and authentication rate limits at the gateway, use a managed secrets store and TLS to a least-privilege PostgreSQL service, configure backup retention, and disable or protect API docs. Enrollment currently relies on the private operator secret. Account verification and public registration are separate work.
 

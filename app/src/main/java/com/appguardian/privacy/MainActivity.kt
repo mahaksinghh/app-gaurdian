@@ -189,7 +189,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopDnsService() {
-        stopService(Intent(this, DnsProtectionService::class.java))
+        if (DnsProtectionService.status.value.provider == null) return
+        // Android keeps the service bound until the tunnel is closed.
+        try {
+            startService(Intent(this, DnsProtectionService::class.java).setAction(DnsProtectionService.STOP))
+        } catch (_: IllegalStateException) {
+            status = "Open AppGuardian to stop DNS protection, or disconnect it in Android Settings."
+        }
     }
 
     private fun listApps() = runTask {
@@ -440,7 +446,8 @@ class MainActivity : ComponentActivity() {
                     item {
                         Text("Protect and verify", style = MaterialTheme.typography.titleLarge)
                         if (result.fileSha256 != null) {
-                            Text("Leave the APK uninstalled if its source or permissions are unexpected. Compare the hash or signing certificate with a value published by the developer through a trusted channel.")
+                            Text("Leave the APK uninstalled if its source or permissions are unexpected.")
+                            FingerprintCheck(result.fileSha256, result.signerSha256)
                         } else if (viewingSaved) {
                             Text("Review the installed app again to check its current permissions.")
                             OutlinedButton(enabled = !busy, onClick = { runReview { scanner.installed(result.packageName) } }) {
