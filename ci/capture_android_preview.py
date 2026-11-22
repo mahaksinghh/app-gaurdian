@@ -42,7 +42,15 @@ def find(nodes: list[ET.Element], label: str, partial: bool = False) -> ET.Eleme
 def wait_for(label: str, *, partial: bool = False, swipe: str | None = None) -> ET.Element:
     deadline = time.monotonic() + 28
     while time.monotonic() < deadline:
-        match = find(window(), label, partial)
+        nodes = window()
+        launcher_dialog = find(nodes, "Pixel Launcher isn't responding")
+        if launcher_dialog is not None:
+            close = find(nodes, "Close app")
+            if close is not None:
+                tap(close)
+                time.sleep(0.5)
+                continue
+        match = find(nodes, label, partial)
         if match is not None:
             return match
         if swipe == "up":
@@ -87,8 +95,9 @@ def select_apk() -> None:
 
 
 def run(apk: str) -> None:
-    adb("shell", "wm", "size", "1080x1920")
-    adb("shell", "wm", "density", "420")
+    adb("shell", "settings", "put", "global", "hide_error_dialogs", "1")
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    adb("shell", "wm", "dismiss-keyguard")
     adb("install", "-r", apk)
     adb("push", apk, f"/sdcard/Download/{DEMO_FILE}")
     adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
@@ -96,10 +105,6 @@ def run(apk: str) -> None:
 
     launch()
     capture("01-home")
-    tap(wait_for("Account recovery"))
-    wait_for("If you suspect account access", partial=True)
-    capture("06-account-recovery")
-    tap(wait_for("Hide account recovery"))
 
     select_apk()
     wait_for("Debuggable build")
@@ -114,9 +119,15 @@ def run(apk: str) -> None:
     capture("05-installed-app")
     tap(wait_for("Open app settings"))
     wait_for("App info")
+    capture("08-android-app-settings")
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     wait_for("No permission grant changes were visible", partial=True, swipe="down")
     capture("07-permission-recheck")
+
+    launch()
+    tap(wait_for("Account recovery"))
+    wait_for("If you suspect account access", partial=True)
+    capture("06-account-recovery")
 
 
 OUTPUT.mkdir(exist_ok=True)
