@@ -105,17 +105,20 @@
     <button type="button" id="walkthrough-next">Check the sample</button>
     <form method="dialog"><button class="quiet">Close demo</button></form>
   </dialog>
-  <dialog id="scan-dialog" class="tool-dialog">
-    <h2>Check an Android app file</h2>
+  <dialog id="scan-dialog" class="tool-dialog" aria-labelledby="scan-title">
+    <h2 id="scan-title">Check an Android app file</h2>
     <label>Select an Android APK<input id="apk-file" type="file" accept=".apk,application/vnd.android.package-archive"></label>
     <details><summary>Compare with a code from the publisher (optional)</summary>
       <label>Publisher’s SHA-256<input id="expected-hash" maxlength="128" spellcheck="false"></label>
       <p>Use a code published on the developer’s trusted website.</p></details>
     <button type="button" id="hash-apk">Compare fingerprint</button>
     <p id="hash-result" role="status" class="hash"></p>
-    <p>For permissions and signing verification, sign in and use a server with APK inspection enabled.</p>
+    <p id="scan-scope">A fingerprint identifies the file. To see its permissions and check its signing, run a server inspection.</p>
     <label class="check-label"><input id="upload-consent" type="checkbox">Send this APK to my AppGuardian server for one-time inspection.</label>
-    <button type="button" id="inspect-apk" class="quiet">Inspect on server</button>
+    <div class="tool-actions">
+      <button type="button" id="scan-sign-in" class="quiet">Sign in to inspect</button>
+      <button type="button" id="inspect-apk" class="quiet">Inspect on server</button>
+    </div>
     <p id="inspect-status" role="status"></p>
     <div id="inspection-result"></div>
     <form method="dialog"><button class="quiet">Close</button></form>

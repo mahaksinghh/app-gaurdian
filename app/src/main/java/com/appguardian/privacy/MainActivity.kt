@@ -17,6 +17,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -325,13 +326,79 @@ class MainActivity : ComponentActivity() {
                 dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
             )
         }
+        val listState = rememberLazyListState()
+        LaunchedEffect(review?.packageName, review?.fileSha256, viewingSaved, showCloud) {
+            if (review != null && !showCloud) listState.animateScrollToItem(0)
+        }
         Scaffold { insets ->
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().padding(insets),
                 contentPadding = PaddingValues(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item { GuardianHeader() }
+                review?.takeUnless { showCloud }?.let { result ->
+                    item {
+                        ReviewSummary(
+                            report = result,
+                            saved = viewingSaved,
+                            busy = busy,
+                            feedback = status,
+                            openSettings = {
+                                launchSystemAction(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", result.packageName, null)),
+                                    verifyOnReturn = true
+                                )
+                            },
+                            recheck = ::verify,
+                            readCurrent = { runReview { scanner.installed(result.packageName) } }
+                        )
+                    }
+                    items(result.findings.drop(1)) { finding ->
+                        ElevatedCard {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(finding.title, style = MaterialTheme.typography.titleMedium)
+                                Text(finding.explanation)
+                            }
+                        }
+                    }
+                    item {
+                        Text("Technical evidence", style = MaterialTheme.typography.titleLarge)
+                        Text("Version ${result.version} · Target Android API ${result.targetSdk ?: "unknown"}")
+                        result.fileSha256?.let {
+                            Text("APK SHA-256")
+                            Hash(it)
+                        }
+                        Text("Current signing certificate SHA-256")
+                        if (result.signerSha256.isEmpty()) Text("Android returned no signing certificate.")
+                        result.signerSha256.forEach { Hash(it) }
+                        Text("Requested permissions", style = MaterialTheme.typography.titleMedium)
+                        if (result.requested.isEmpty()) Text("None reported by Android.")
+                        result.requested.sorted().forEach {
+                            Text(if (result.fileSha256 == null) "${if (it in result.granted) "Granted" else "Not granted"} · $it" else it)
+                        }
+                    }
+                    item {
+                        if (result.fileSha256 != null) {
+                            Text("Verify the file", style = MaterialTheme.typography.titleLarge)
+                            FingerprintCheck(result.fileSha256, result.signerSha256)
+                        } else if (!viewingSaved) {
+                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                            Text(
+                                "Watch this app for permission changes. AppGuardian checks periodically when Android allows it and keeps up to 14 days of changes on this device."
+                            )
+                            TextButton(enabled = !busy, onClick = { toggleWatch(result) }) {
+                                Text(if (result.packageName in watchSummary.packages) "Stop monitoring" else "Watch permission changes")
+                            }
+                        }
+                        if (!viewingSaved) {
+                            TextButton(enabled = !busy && !savedCurrent, onClick = { saveReport(result) }) {
+                                Text(if (savedCurrent) "Saved on this device" else "Save report on this device")
+                            }
+                        }
+                    }
+                }
                 item { ApkEntryCard(scanningApk, !busy) { picker.launch("*/*") } }
                 item {
                     OutlinedButton(enabled = !busy, onClick = { listApps() }) { Text("Review installed apps") }
@@ -355,7 +422,7 @@ class MainActivity : ComponentActivity() {
                 }
                 item {
                     AnimatedVisibility(busy) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                    AnimatedVisibility(status.isNotBlank()) { Text(status) }
+                    AnimatedVisibility(status.isNotBlank() && (review == null || showCloud)) { Text(status) }
                 }
                 if (showNetwork) { item { DnsProtectionPanel(::requestVpn, ::stopDnsService) } }
                 if (showCloud) { item { CloudPanel(review) } }
@@ -409,70 +476,6 @@ class MainActivity : ComponentActivity() {
                                     TextButton(enabled = !busy, onClick = { openSaved(saved) }) { Text("View report") }
                                     TextButton(enabled = !busy, onClick = { deleteSaved(saved.id) }) { Text("Delete report") }
                                 }
-                            }
-                        }
-                    }
-                }
-                review?.takeUnless { showCloud }?.let { result ->
-                    item {
-                        if (viewingSaved) Text("Saved report", style = MaterialTheme.typography.labelLarge)
-                        Text(result.packageName, style = MaterialTheme.typography.headlineSmall)
-                        Text("Version ${result.version} · Target Android API ${result.targetSdk ?: "unknown"}")
-                        Text("These findings describe observable capabilities. A scan cannot determine everything an app may do after installation.")
-                    }
-                    items(result.findings) { finding ->
-                        ElevatedCard {
-                            Column(Modifier.padding(16.dp)) {
-                                Text(finding.title, style = MaterialTheme.typography.titleMedium)
-                                Text(finding.explanation)
-                            }
-                        }
-                    }
-                    item {
-                        if (result.findings.isEmpty()) Text("No indicators matched the checks in this version.")
-                        result.fileSha256?.let {
-                            Text("APK SHA-256")
-                            Hash(it)
-                        }
-                        Text("Current signing certificate SHA-256")
-                        if (result.signerSha256.isEmpty()) Text("Android returned no signing certificate.")
-                        result.signerSha256.forEach { Hash(it) }
-                        Text("Requested permissions", style = MaterialTheme.typography.titleMedium)
-                        if (result.requested.isEmpty()) Text("None reported by Android.")
-                        result.requested.sorted().forEach {
-                            Text(if (result.fileSha256 == null) "${if (it in result.granted) "Granted" else "Not granted"} · $it" else it)
-                        }
-                    }
-                    item {
-                        Text("Protect and verify", style = MaterialTheme.typography.titleLarge)
-                        if (result.fileSha256 != null) {
-                            Text("Leave the APK uninstalled if its source or permissions are unexpected.")
-                            FingerprintCheck(result.fileSha256, result.signerSha256)
-                        } else if (viewingSaved) {
-                            Text("Review the installed app again to check its current permissions.")
-                            OutlinedButton(enabled = !busy, onClick = { runReview { scanner.installed(result.packageName) } }) {
-                                Text("Check this app now")
-                            }
-                        } else {
-                            Text("Use Android Settings to review or revoke permissions. To remove an app, use the Uninstall control there if Android offers it.")
-                            Button(enabled = !busy, onClick = {
-                                launchSystemAction(
-                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", result.packageName, null)),
-                                    verifyOnReturn = true
-                                )
-                            }) { Text("Open app settings") }
-                            OutlinedButton(enabled = !busy, onClick = { verify() }) { Text("Recheck permissions") }
-                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                            Text(
-                                "Watch this app for permission changes. AppGuardian checks periodically when Android allows it and keeps up to 14 days of changes on this device."
-                            )
-                            TextButton(enabled = !busy, onClick = { toggleWatch(result) }) {
-                                Text(if (result.packageName in watchSummary.packages) "Stop monitoring" else "Watch permission changes")
-                            }
-                        }
-                        if (!viewingSaved) {
-                            TextButton(enabled = !busy && !savedCurrent, onClick = { saveReport(result) }) {
-                                Text(if (savedCurrent) "Saved on this device" else "Save report on this device")
                             }
                         }
                     }

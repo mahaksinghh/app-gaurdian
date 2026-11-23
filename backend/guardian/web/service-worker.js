@@ -1,6 +1,6 @@
 "use strict";
 
-const cacheName = "appguardian-web-v2";
+const cacheName = "appguardian-web-v3";
 const assets = ["./", "./styles.css", "./dashboard.js", "./home.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 const urls = new Set(assets.map(path => new URL(path, self.registration.scope).href));
 

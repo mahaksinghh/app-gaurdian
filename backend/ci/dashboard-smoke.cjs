@@ -60,10 +60,24 @@ async function request(path, method, body, token) {
     await page.getByLabel("Change the password from a trusted device.").check();
     await page.getByText("1 of 4 steps confirmed by you.").waitFor();
     await page.getByRole("dialog").getByRole("button", { name: "Close" }).click();
+    await page.getByRole("button", { name: "Check a file" }).click();
+    await page.getByLabel("Select an Android APK").setInputFiles(process.env.GUARDIAN_BROWSER_APK);
+    await page.getByRole("button", { name: "Sign in to inspect" }).click();
     await page.getByRole("heading", { name: "Sign in" }).waitFor();
     await page.locator("#login").getByLabel("Email", { exact: true }).fill(email);
     await page.locator("#login").getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in" }).click();
+    const scan = page.getByRole("dialog", { name: "Check an Android app file" });
+    await scan.getByRole("button", { name: "Inspect on server" }).click();
+    await scan.getByText("Confirm that you want to send this APK to the server.").waitFor();
+    await scan.getByLabel("Send this APK to my AppGuardian server for one-time inspection.").check();
+    await scan.getByRole("button", { name: "Inspect on server" }).click();
+    await scan.getByRole("heading", { name: "Pause and review before installing" }).waitFor();
+    await scan.getByText("Use the camera.", { exact: true }).waitFor();
+    await scan.getByRole("heading", { name: "How to verify" }).waitFor();
+    await scan.getByRole("button", { name: "Close" }).click();
+    console.log("Signed APK inspected from the browser with explicit consent and decision guidance.");
+
     await page.getByText("com.example.guardian.shared", { exact: true }).waitFor();
     assert.equal(await page.getByText("com.example.guardian.private", { exact: true }).count(), 0);
     await page.getByText("com.example.guardian.shared", { exact: true }).click();

@@ -85,3 +85,7 @@ PY
 
 test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$(docker compose ps -q worker)")" = none
 test -z "$(docker compose exec -T worker find /tmp -maxdepth 1 -name 'guardian-*' -print)"
+
+if [[ -n "${GUARDIAN_BROWSER_APK:-}" ]]; then
+    cp "$fixture" "$GUARDIAN_BROWSER_APK"
+fi

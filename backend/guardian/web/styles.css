@@ -85,3 +85,17 @@ dialog::backdrop { background: #0009; }
 .check-label input { width: auto; margin-top: .35rem; accent-color: var(--accent); }
 select { padding: .5rem; background: var(--background); color: var(--text); border: 1px solid var(--border); border-radius: .5rem; font: inherit; }
 @media (max-width: 43rem) { .home-grid { grid-template-columns: 1fr; } }
+
+.tool-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.decision { background: var(--surface-raised); padding: 1rem; border-radius: .9rem; border-inline-start: .2rem solid var(--accent); }
+.decision h4 { margin: .8rem 0 .25rem; }
+.decision p { margin-bottom: .5rem; }
+#inspection-result { display: grid; gap: .75rem; }
+#inspection-result:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .tool-dialog[open], .decision { animation: guardian-enter .2s ease-out; }
+}
+@keyframes guardian-enter {
+  from { opacity: 0; transform: translateY(.44rem); }
+  to { opacity: 1; transform: none; }
+}

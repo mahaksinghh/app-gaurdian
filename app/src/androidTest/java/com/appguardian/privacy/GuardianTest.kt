@@ -28,6 +28,19 @@ import org.junit.runner.RunWith
 class GuardianTest {
     @get:Rule val screen = createAndroidComposeRule<MainActivity>()
 
+    @Test fun installedAppReviewPutsActionAndFeedbackUpFront() {
+        val packageName = InstrumentationRegistry.getInstrumentation().targetContext.packageName
+        screen.onNodeWithText("Review installed apps").performScrollTo().performClick()
+        val list = screen.onNode(hasScrollToIndexAction())
+        list.performScrollToNode(hasText(packageName))
+        screen.onNodeWithText(packageName, substring = false).performClick()
+        list.performScrollToNode(hasText("What to do next"))
+        screen.onNodeWithText("Open app settings").assertExists()
+        list.performScrollToNode(hasText("Recheck permissions"))
+        screen.onNodeWithText("Recheck permissions").performClick()
+        list.performScrollToNode(hasText("No permission grant changes were visible to AppGuardian."))
+    }
+
     @Test fun recoveryGuideIsUserInitiated() {
         screen.onNodeWithText("Choose APK").assertExists()
         screen.onNodeWithText("Account recovery").performClick()

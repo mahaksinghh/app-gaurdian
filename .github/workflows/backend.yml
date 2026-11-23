@@ -57,12 +57,14 @@ jobs:
       - run: docker compose --profile intelligence run --rm --build catalog
       - run: docker compose up --build --wait
       - run: bash backend/ci/worker-smoke.sh
+        env:
+          GUARDIAN_BROWSER_APK: ${{ runner.temp }}/appguardian-browser-fixture.apk
       - name: Verify the account console in Chromium
         run: |
           export GUARDIAN_PLAYWRIGHT_DIR="$RUNNER_TEMP/appguardian-browser"
           npm install --no-save --prefix "$GUARDIAN_PLAYWRIGHT_DIR" playwright@1.58.2
           "$GUARDIAN_PLAYWRIGHT_DIR/node_modules/.bin/playwright" install --with-deps --only-shell chromium
-          node backend/ci/dashboard-smoke.cjs
+          GUARDIAN_BROWSER_APK="$RUNNER_TEMP/appguardian-browser-fixture.apk" node backend/ci/dashboard-smoke.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: dashboard-preview

@@ -10,6 +10,22 @@ const inspectionResult = byId("inspection-result");
 const archiveLimit = 25 * 1024 * 1024;
 let installPrompt;
 let scanRevision = 0;
+let resumeInspection = false;
+
+byId("scan-sign-in").onclick = () => {
+  resumeInspection = true;
+  scanDialog.close();
+  login.scrollIntoView({ block: "center" });
+  login.elements.email.focus();
+};
+document.addEventListener("guardian:session", () => {
+  byId("scan-sign-in").hidden = !!session;
+  if (session && resumeInspection) {
+    resumeInspection = false;
+    scanDialog.showModal();
+  }
+});
+
 
 byId("open-scan").onclick = () => scanDialog.showModal();
 byId("open-recovery").onclick = () => recoveryDialog.showModal();
@@ -79,20 +95,7 @@ byId("inspect-apk").onclick = async () => {
     if (!response.ok) throw new Error("The server could not inspect this APK.");
     const result = await response.json();
     if (current !== session || revision !== scanRevision) return;
-    const report = result.report;
-    inspectionResult.append(element("h3", "What to do next"),
-      element("p", result.signature === "verified"
-        ? "Confirm the publisher and check why the app needs the permissions below before installing."
-        : "Pause the installation. Get the app from the developer’s official source and compare its fingerprint."),
-      element("h3", report.package_name),
-      element("p", "Signing check: " + result.signature),
-      element("p", "APK SHA-256 " + report.apk_sha256, "hash"));
-    if (result.debuggable) inspectionResult.append(element("p", "The manifest enables debugging. Confirm this build with the publisher."));
-    const permissions = element("ul");
-    for (const permission of report.requested_permissions) permissions.append(element("li", permission));
-    inspectionResult.append(element("h3", "Requested permissions"), permissions);
-    if (!report.requested_permissions.length) inspectionResult.append(element("p", "None reported."));
-    inspectionResult.append(element("p", "Check the download source and whether these permissions fit the app’s purpose before installing."));
+    renderInspection(result);
     inspectStatus.textContent = "";
   } catch (error) {
     if (revision === scanRevision) inspectStatus.textContent = error instanceof TypeError ? "Could not reach your AppGuardian server." : error.message;
@@ -100,6 +103,51 @@ byId("inspect-apk").onclick = async () => {
     button.disabled = false;
   }
 };
+
+const permissionExplanations = {
+  "android.permission.READ_SMS": "Read text messages, which may contain verification codes.",
+  "android.permission.RECEIVE_SMS": "Receive text messages.",
+  "android.permission.READ_CONTACTS": "Read your contacts.",
+  "android.permission.RECORD_AUDIO": "Use the microphone to record audio.",
+  "android.permission.CAMERA": "Use the camera.",
+  "android.permission.ACCESS_FINE_LOCATION": "Access precise location.",
+  "android.permission.ACCESS_BACKGROUND_LOCATION": "Access location in the background.",
+  "android.permission.REQUEST_INSTALL_PACKAGES": "Ask Android to install another app."
+};
+
+function renderInspection(result) {
+  const report = result.report;
+  const known = report.requested_permissions.filter(permission =>
+    Object.hasOwn(permissionExplanations, permission));
+  const pause = result.signature !== "verified" || result.debuggable || known.length > 0;
+  const summary = element("section", undefined, "decision");
+  summary.append(element("h3", pause ? "Pause and review before installing" : "Check the source before installing"),
+    element("p", report.package_name),
+    element("h4", "What we checked"),
+    element("p", result.signature === "verified"
+      ? "The signing check passed. Compare the signer with a trusted publisher reference to confirm who distributed it."
+      : "The server could not verify the APK signature."));
+  if (result.debuggable) summary.append(element("p", "This build allows debugging. Ask the publisher if you were meant to receive a test build."));
+  if (known.length) {
+    const plainly = element("ul");
+    for (const permission of known) plainly.append(element("li", permissionExplanations[permission]));
+    summary.append(element("h4", "Access the app requests"), plainly);
+  }
+  summary.append(element("h4", "What to do next"),
+    element("p", "Go to the developer’s official site yourself. Check whether they offer this app and explain the requested access. Leave it uninstalled if you cannot verify the source."),
+    element("h4", "How to verify"),
+    element("p", "If the publisher provides a SHA-256 value, use Compare fingerprint above to check your file."));
+  const evidence = element("details");
+  evidence.append(element("summary", "Technical details"),
+    element("p", "APK SHA-256 " + report.apk_sha256, "hash"));
+  for (const signer of report.signer_sha256) evidence.append(element("p", "Signer SHA-256 " + signer, "hash"));
+  const permissions = element("ul");
+  for (const permission of report.requested_permissions) permissions.append(element("li", permission));
+  evidence.append(element("h4", "Requested permissions"));
+  evidence.append(report.requested_permissions.length ? permissions : element("p", "None reported."));
+  inspectionResult.replaceChildren(summary, evidence);
+  summary.scrollIntoView({ block: "nearest" });
+}
 
 const recoverySteps = {
   en: ["Change the password from a trusted device.", "Review recent sign-ins and remove unknown devices.", "Verify your recovery email and phone number.", "Turn on two-step verification and confirm it in account settings."],
@@ -162,6 +210,9 @@ function showWalkthroughStep() {
   walkthroughTitle.textContent = title;
   walkthroughDetail.textContent = detail;
   walkthroughNext.textContent = action;
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    walkthroughDetail.animate([{ opacity: 0, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 160 });
+  }
 }
 byId("open-walkthrough").onclick = () => {
   walkthroughIndex = 0;
