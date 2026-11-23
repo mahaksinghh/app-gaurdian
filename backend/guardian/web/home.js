@@ -80,7 +80,11 @@ byId("inspect-apk").onclick = async () => {
     const result = await response.json();
     if (current !== session || revision !== scanRevision) return;
     const report = result.report;
-    inspectionResult.append(element("h3", report.package_name),
+    inspectionResult.append(element("h3", "What to do next"),
+      element("p", result.signature === "verified"
+        ? "Confirm the publisher and check why the app needs the permissions below before installing."
+        : "Pause the installation. Get the app from the developer’s official source and compare its fingerprint."),
+      element("h3", report.package_name),
       element("p", "Signing check: " + result.signature),
       element("p", "APK SHA-256 " + report.apk_sha256, "hash"));
     if (result.debuggable) inspectionResult.append(element("p", "The manifest enables debugging. Confirm this build with the publisher."));
@@ -140,3 +144,31 @@ byId("install-app").onclick = async () => {
   await prompt.prompt();
 };
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js").catch(console.warn);
+
+
+const walkthrough = byId("walkthrough");
+const walkthroughTitle = byId("walkthrough-title");
+const walkthroughDetail = byId("walkthrough-detail");
+const walkthroughNext = byId("walkthrough-next");
+const walkthroughSteps = [
+  ["Someone sent you a photo editor APK", "You received an Android installation file in a message. Try a safety check before deciding whether to install it.", "Check the sample"],
+  ["The sample requests SMS access", "SMS access could let an app read text messages if Android grants it. In this example, the sender has not explained why a photo editor needs that access.", "See what to do"],
+  ["Pause the installation", "Leave the file uninstalled for now. Open the developer’s official site independently and check whether they offer the same app and explain the permission.", "Verify before deciding"],
+  ["Check the source and file", "If the developer publishes a SHA-256 file fingerprint, compare it with your download. If you cannot verify the source or explain the SMS request, leave it uninstalled.", "Start over"]
+];
+let walkthroughIndex = 0;
+function showWalkthroughStep() {
+  const [title, detail, action] = walkthroughSteps[walkthroughIndex];
+  walkthroughTitle.textContent = title;
+  walkthroughDetail.textContent = detail;
+  walkthroughNext.textContent = action;
+}
+byId("open-walkthrough").onclick = () => {
+  walkthroughIndex = 0;
+  showWalkthroughStep();
+  walkthrough.showModal();
+};
+walkthroughNext.onclick = () => {
+  walkthroughIndex = (walkthroughIndex + 1) % walkthroughSteps.length;
+  showWalkthroughStep();
+};

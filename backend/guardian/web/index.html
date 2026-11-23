@@ -23,11 +23,12 @@
     <section class="product-home">
       <div class="intro">
         <h1>What do you want to protect?</h1>
-        <p>Check an APK before installing it, or work through the steps to secure an account.</p>
+        <p>Received an Android app file or worried someone got into your account? Start with what happened.</p>
+        <button type="button" id="open-walkthrough">Try a sample safety check</button>
       </div>
       <div class="home-grid">
-        <article class="card"><h2>Check an APK</h2><p>Compare its fingerprint locally or send it for deeper inspection.</p><button type="button" id="open-scan">Check a file</button></article>
-        <article class="card"><h2>Secure an account</h2><p>Follow a recovery checklist and verify what changed.</p><button type="button" id="open-recovery" class="quiet">Start recovery</button></article>
+        <article class="card"><h2>I received an app file</h2><p>Check an Android APK before you decide to install it.</p><button type="button" id="open-scan">Check a file</button></article>
+        <article class="card"><h2>I think my account was accessed</h2><p>Follow a checklist to secure it and confirm the changes.</p><button type="button" id="open-recovery" class="quiet">Start recovery</button></article>
         <article class="card"><h2>Review reports</h2><p>Open reports shared from your Android device.</p><button type="button" id="open-reports" class="quiet">Open reports</button></article>
       </div>
       <button type="button" id="install-app" class="quiet">Install AppGuardian</button>
@@ -97,10 +98,19 @@
       </section>
     </section>
   </main>
+  <dialog id="walkthrough" class="tool-dialog" aria-labelledby="walkthrough-title">
+    <p class="detail-meta">Practice scenario · No account or upload needed</p>
+    <h2 id="walkthrough-title">Someone sent you a photo editor APK</h2>
+    <p id="walkthrough-detail">You received an Android installation file in a message. Try a safety check before deciding whether to install it.</p>
+    <button type="button" id="walkthrough-next">Check the sample</button>
+    <form method="dialog"><button class="quiet">Close demo</button></form>
+  </dialog>
   <dialog id="scan-dialog" class="tool-dialog">
-    <h2>Check an APK</h2>
+    <h2>Check an Android app file</h2>
     <label>Select an Android APK<input id="apk-file" type="file" accept=".apk,application/vnd.android.package-archive"></label>
-    <label>Publisher’s SHA-256 (optional)<input id="expected-hash" maxlength="128" spellcheck="false"></label>
+    <details><summary>Compare with a code from the publisher (optional)</summary>
+      <label>Publisher’s SHA-256<input id="expected-hash" maxlength="128" spellcheck="false"></label>
+      <p>Use a code published on the developer’s trusted website.</p></details>
     <button type="button" id="hash-apk">Compare fingerprint</button>
     <p id="hash-result" role="status" class="hash"></p>
     <p>For permissions and signing verification, sign in and use a server with APK inspection enabled.</p>

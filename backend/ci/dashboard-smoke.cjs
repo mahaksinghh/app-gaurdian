@@ -42,6 +42,13 @@ async function request(path, method, body, token) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 960 } });
     await page.goto(origin + "/dashboard/");
     await page.getByRole("heading", { name: "What do you want to protect?" }).waitFor();
+    await page.getByRole("button", { name: "Try a sample safety check" }).click();
+    await page.getByRole("button", { name: "Check the sample" }).click();
+    await page.getByRole("heading", { name: "The sample requests SMS access" }).waitFor();
+    await page.getByRole("button", { name: "See what to do" }).click();
+    await page.getByRole("button", { name: "Verify before deciding" }).click();
+    await page.getByRole("heading", { name: "Check the source and file" }).waitFor();
+    await page.getByRole("button", { name: "Close demo" }).click();
     await page.getByRole("button", { name: "Check a file" }).click();
     await page.getByLabel("Select an Android APK").setInputFiles({
       name: "fingerprint-fixture.apk", mimeType: "application/vnd.android.package-archive", buffer: Buffer.from("abc")
