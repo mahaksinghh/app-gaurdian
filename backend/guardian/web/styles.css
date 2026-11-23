@@ -72,3 +72,30 @@ dialog::backdrop { background: #0009; }
   .section-heading, .device { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none; } }
+
+.product-home { display: grid; gap: 1.5rem; margin-bottom: 3rem; }
+.home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.home-grid .card { grid-template-rows: auto 1fr auto; background: linear-gradient(145deg, var(--surface-raised), var(--surface)); }
+.home-grid h2 { margin: 0; }
+.home-grid p { margin: 0; }
+.entry { grid-template-columns: minmax(0, 32rem); }
+.tool-dialog { width: min(36rem, calc(100% - 2rem)); max-width: 36rem; }
+.tool-dialog > * + * { margin-top: .85rem; }
+.check-label { display: flex; align-items: start; gap: .6rem; margin-block: .75rem; }
+.check-label input { width: auto; margin-top: .35rem; accent-color: var(--accent); }
+select { padding: .5rem; background: var(--background); color: var(--text); border: 1px solid var(--border); border-radius: .5rem; font: inherit; }
+@media (max-width: 43rem) { .home-grid { grid-template-columns: 1fr; } }
+
+.tool-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+.decision { background: var(--surface-raised); padding: 1rem; border-radius: .9rem; border-inline-start: .2rem solid var(--accent); }
+.decision h4 { margin: .8rem 0 .25rem; }
+.decision p { margin-bottom: .5rem; }
+#inspection-result { display: grid; gap: .75rem; }
+#inspection-result:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .tool-dialog[open], .decision { animation: guardian-enter .2s ease-out; }
+}
+@keyframes guardian-enter {
+  from { opacity: 0; transform: translateY(.44rem); }
+  to { opacity: 1; transform: none; }
+}

@@ -70,6 +70,10 @@ function showPanel(id) {
 
 function resetSession() {
   session = null;
+  byId("inspection-result").replaceChildren();
+  byId("inspect-status").textContent = "";
+  byId("upload-consent").checked = false;
+  document.dispatchEvent(new Event("guardian:session"));
   status.textContent = "";
   byId("locked").hidden = false;
   byId("workspace").hidden = true;
@@ -95,6 +99,8 @@ login.addEventListener("submit", async (event) => {
     byId("sign-out").hidden = false;
     showPanel("reports");
     await withSession(fetchReports);
+    document.dispatchEvent(new Event("guardian:session"));
+    if (!byId("scan-dialog").open) byId("workspace").scrollIntoView();
   } catch (error) {
     loginStatus.textContent = error instanceof TypeError ? "Could not reach your server." : error.message;
   } finally {
